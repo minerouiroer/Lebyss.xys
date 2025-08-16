@@ -82,8 +82,8 @@ local load = function(name)
 end;
 
 if (placeid == 13253735473) then
-	return load('tridentsurvival');
+	return load('fallensurvival');
 elseif (placeid == 13800717766 or placeid == 15479377118 or placeid == 16849012343) then
-    return load('fallensurvival');
+    return load('tridentsurvival');
 end;
 protectedMessagebox(`This Game is Unsupported!\n\nIf you believe this is incorrect, please open a ticket in our discord! - https://discord.gg/ku2DksdU`, `Lebyss.xys [{placeid}]`, 48);
