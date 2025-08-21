@@ -1,89 +1,569 @@
-if not game:IsLoaded() then
-	game.Loaded:Wait()
-end;
+-- Lebyss.xys/discord.gg/ki57ct5 V2
+-- Rainbow Cheat Menu for Trident Survival v5
 
-local players 		= game:GetService('Players');
-local localPlayer 	= players.LocalPlayer;
-if (not localPlayer) then
-	players:GetPropertyChangedSignal('LocalPlayer'):Wait();
-	localPlayer = players.LocalPlayer;
-end;
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local Lighting = game:GetService("Lighting")
 
-local executor 		= identifyexecutor and identifyexecutor() or 'Unknown';
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
 
-local messagebox 	= messagebox;
-local request 		= request or http_request;
-local loadstring 	= loadstring;
+-- GUI Library
+local Library = {}
+local themes = {
+    background = Color3.fromRGB(20, 20, 30),
+    accent = Color3.fromRGB(0, 100, 255),
+    text = Color3.fromRGB(255, 255, 255),
+    rainbow = true
+}
 
-if (type(messagebox) ~= 'function') then
-	return localPlayer:Kick('[Lebyss.xys] missing alias ( messagebox ) - unsupported executor');
-end;
+function Library:CreateWindow(name)
+    local ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Name = "LebyssCheatMenu"
+    ScreenGui.Parent = game.CoreGui
+    ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
-local protectedMessagebox = function(body, title, id)
-	local success, output = pcall(messagebox, body, title, id);
-	if (not success) then
-		localPlayer:Kick(`[Lebyss.xys] messagebox_error - {body}`);
-		task.wait(9e9);
-		return;
-	end;
-	return output;
-end;
-local protectedLoad = function(url)
-	local success, response = pcall(request, {Url=url; Method='GET';});
-	if (not success) then
-		protectedMessagebox(`protectedLoad failed(1) - request error\n\nurl: {url}`, `Lebyss.xys [{executor}]`, 48);
-		task.wait(9e9);
-		return;
-	elseif (type(response) ~= 'table' or type(response.Body) ~= 'string' or response.StatusCode ~= 200) then
-            protectedMessagebox(`protectedLoad failed(2) - bad response\n\nurl: {url}`, `Lebyss.xys [{executor}]`, 48);
-		task.wait(9e9);
-		return;
-      end;
-      local loader = loadstring(response.Body);
-      if (not loader) then
-            protectedMessagebox(`protectedLoad failed(3) - syntax error\n\nurl: {url}`, `Lebyss.xys [{executor}]`, 48);
-		task.wait(9e9);
-		return;
-      end;
-      return loader();
-end;
+    local MainFrame = Instance.new("Frame")
+    MainFrame.Name = "MainFrame"
+    MainFrame.Size = UDim2.new(0, 500, 0, 400)
+    MainFrame.Position = UDim2.new(0.5, -250, 0.5, -200)
+    MainFrame.BackgroundColor3 = themes.background
+    MainFrame.BackgroundTransparency = 0.1
+    MainFrame.BorderSizePixel = 0
+    MainFrame.Parent = ScreenGui
 
-if (type(loadstring) ~= 'function') then
-	return protectedMessagebox(`missing alias ( loadstring ) - unsupported executor`, `Lebyss.xys [{executor}]`, 48);
-elseif (type(request) ~= 'function') then
-	return protectedMessagebox(`missing alias ( request ) - unsupported executor`, `Lebyss.xys [{executor}]`, 48);
-elseif (not Drawing) then
-end;
-	
-local placeid = game.PlaceId;
+    local UICorner = Instance.new("UICorner")
+    UICorner.CornerRadius = UDim.new(0, 8)
+    UICorner.Parent = MainFrame
 
+    local Title = Instance.new("TextLabel")
+    Title.Name = "Title"
+    Title.Size = UDim2.new(1, 0, 0, 30)
+    Title.Position = UDim2.new(0, 0, 0, 0)
+    Title.BackgroundTransparency = 1
+    Title.Text = "Lebyss.xys | " .. name
+    Title.TextColor3 = themes.text
+    Title.Font = Enum.Font.GothamBold
+    Title.TextSize = 16
+    Title.Parent = MainFrame
 
-local statuslist = {};
-local dir = 'https://raw.githubusercontent.com/mainstreamed/amongus-hook/main/';
+    -- Добавляем кнопку закрытия
+    local CloseButton = Instance.new("TextButton")
+    CloseButton.Name = "CloseButton"
+    CloseButton.Size = UDim2.new(0, 25, 0, 25)
+    CloseButton.Position = UDim2.new(1, -30, 0, 5)
+    CloseButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+    CloseButton.Text = "X"
+    CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    CloseButton.Font = Enum.Font.GothamBold
+    CloseButton.TextSize = 14
+    CloseButton.Parent = MainFrame
 
-statuslist.tridentsurvival = {
-	name 		= 'Trident Survival';
-	status 		= 'Undetected';
-	support 	= {'AWP'; 'Swift'; 'MacSploit'; 'Velocity'; 'Potassium'; 'Seliware'; };
-};
+    local CloseUICorner = Instance.new("UICorner")
+    CloseUICorner.CornerRadius = UDim.new(0, 12)
+    CloseUICorner.Parent = CloseButton
 
-local load = function(name)
-	local game = statuslist[name];
-	if (game.status ~= 'Undetected' and protectedMessagebox(`{game.name} is Currently Marked as {game.status}!\n\nAre You Sure You Want to Continue?`, `Lebyss.xys`, 52) ~= 6) then
-		return;
-	elseif (
-		game.support and 
-		not table.find(game.support, executor) and 
-		protectedMessagebox(`Unsupported Executor!\n\n{executor} is not Officially Supported for {game.name}\nand may have Undefined Behaviour or even result in a BAN!\n\nAre You Sure You Want to Continue?`, `Lebyss.xys [{executor}]`, 52) ~= 6
-	) then
-		return;
-	end;
-	protectedLoad(`{dir}{name}/main.lua`);
-end;
+    CloseButton.MouseButton1Click:Connect(function()
+        ScreenGui.Enabled = not ScreenGui.Enabled
+    end)
 
-if (placeid == 13253735473) then
-	return load('tridentsurvival');
-elseif (placeid == 13800717766 or placeid == 15479377118 or placeid == 16849012343) then
-    return load('fallensurvival');
-end;
-protectedMessagebox(`This Game is Unsupported!\n\nIf you believe this is incorrect, please open a ticket in our discord! - https://discord.gg/ku2DksdU`, `Lebyss.xys [{placeid}]`, 48);
+    local RainbowBorder = Instance.new("Frame")
+    RainbowBorder.Name = "RainbowBorder"
+    RainbowBorder.Size = UDim2.new(1, 0, 0, 2)
+    RainbowBorder.Position = UDim2.new(0, 0, 0, 30)
+    RainbowBorder.BackgroundTransparency = 0
+    RainbowBorder.BorderSizePixel = 0
+    RainbowBorder.Parent = MainFrame
+
+    local TabButtons = Instance.new("Frame")
+    TabButtons.Name = "TabButtons"
+    TabButtons.Size = UDim2.new(0, 120, 0, 340)
+    TabButtons.Position = UDim2.new(0, 10, 0, 40)
+    TabButtons.BackgroundTransparency = 1
+    TabButtons.Parent = MainFrame
+
+    local Content = Instance.new("Frame")
+    Content.Name = "Content"
+    Content.Size = UDim2.new(0, 350, 0, 340)
+    Content.Position = UDim2.new(0, 140, 0, 40)
+    Content.BackgroundTransparency = 1
+    Content.Parent = MainFrame
+
+    -- Функционал перемещения меню
+    local dragging = false
+    local dragInput, dragStart, startPos
+
+    local function update(input)
+        local delta = input.Position - dragStart
+        MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+
+    Title.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = MainFrame.Position
+            
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+
+    Title.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement then
+            dragInput = input
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging then
+            update(input)
+        end
+    end)
+
+    -- Rainbow effect
+    local rainbowColors = {
+        Color3.fromRGB(255, 0, 0),
+        Color3.fromRGB(255, 165, 0),
+        Color3.fromRGB(255, 255, 0),
+        Color3.fromRGB(0, 255, 0),
+        Color3.fromRGB(0, 0, 255),
+        Color3.fromRGB(75, 0, 130),
+        Color3.fromRGB(238, 130, 238)
+    }
+
+    local currentColorIndex = 1
+    RunService.Heartbeat:Connect(function()
+        if themes.rainbow then
+            RainbowBorder.BackgroundColor3 = rainbowColors[currentColorIndex]
+            currentColorIndex = (currentColorIndex % #rainbowColors) + 1
+        end
+    end)
+
+    local tabs = {}
+    function Library:CreateTab(name)
+        local TabButton = Instance.new("TextButton")
+        TabButton.Name = name .. "TabButton"
+        TabButton.Size = UDim2.new(1, -10, 0, 30)
+        TabButton.Position = UDim2.new(0, 5, 0, #tabs * 35)
+        TabButton.BackgroundColor3 = themes.accent
+        TabButton.BackgroundTransparency = 0.7
+        TabButton.Text = name
+        TabButton.TextColor3 = themes.text
+        TabButton.Font = Enum.Font.Gotham
+        TabButton.TextSize = 14
+        TabButton.Parent = TabButtons
+
+        local TabUICorner = Instance.new("UICorner")
+        TabUICorner.CornerRadius = UDim.new(0, 6)
+        TabUICorner.Parent = TabButton
+
+        local TabContent = Instance.new("ScrollingFrame")
+        TabContent.Name = name .. "Content"
+        TabContent.Size = UDim2.new(1, 0, 1, 0)
+        TabContent.Position = UDim2.new(0, 0, 0, 0)
+        TabContent.BackgroundTransparency = 1
+        TabContent.Visible = false
+        TabContent.ScrollBarThickness = 3
+        TabContent.Parent = Content
+
+        local UIListLayout = Instance.new("UIListLayout")
+        UIListLayout.Parent = TabContent
+        UIListLayout.Padding = UDim.new(0, 5)
+
+        TabButton.MouseButton1Click:Connect(function()
+            for _, tab in pairs(tabs) do
+                tab.Content.Visible = false
+                tab.Button.BackgroundTransparency = 0.7
+            end
+            TabContent.Visible = true
+            TabButton.BackgroundTransparency = 0.3
+        end)
+
+        local tab = {Button = TabButton, Content = TabContent}
+        table.insert(tabs, tab)
+        if #tabs == 1 then
+            TabContent.Visible = true
+            TabButton.BackgroundTransparency = 0.3
+        end
+
+        return {
+            CreateToggle = function(self, name, callback)
+                local Toggle = Instance.new("TextButton")
+                Toggle.Name = name
+                Toggle.Size = UDim2.new(1, -10, 0, 30)
+                Toggle.Position = UDim2.new(0, 5, 0, 0)
+                Toggle.BackgroundColor3 = themes.background
+                Toggle.BackgroundTransparency = 0.5
+                Toggle.Text = name
+                Toggle.TextColor3 = themes.text
+                Toggle.Font = Enum.Font.Gotham
+                Toggle.TextSize = 14
+                Toggle.Parent = TabContent
+
+                local UICorner = Instance.new("UICorner")
+                UICorner.CornerRadius = UDim.new(0, 6)
+                UICorner.Parent = Toggle
+
+                local state = false
+                Toggle.MouseButton1Click:Connect(function()
+                    state = not state
+                    if state then
+                        Toggle.BackgroundColor3 = themes.accent
+                    else
+                        Toggle.BackgroundColor3 = themes.background
+                    end
+                    callback(state)
+                end)
+
+                return Toggle
+            end,
+
+            CreateSlider = function(self, name, min, max, callback)
+                local SliderFrame = Instance.new("Frame")
+                SliderFrame.Name = name
+                SliderFrame.Size = UDim2.new(1, -10, 0, 50)
+                SliderFrame.BackgroundTransparency = 1
+                SliderFrame.Parent = TabContent
+
+                local Label = Instance.new("TextLabel")
+                Label.Name = "Label"
+                Label.Size = UDim2.new(1, 0, 0, 20)
+                Label.BackgroundTransparency = 1
+                Label.Text = name .. ": " .. tostring(min)
+                Label.TextColor3 = themes.text
+                Label.Font = Enum.Font.Gotham
+                Label.TextSize = 14
+                Label.Parent = SliderFrame
+
+                local Slider = Instance.new("Frame")
+                Slider.Name = "Slider"
+                Slider.Size = UDim2.new(1, 0, 0, 10)
+                Slider.Position = UDim2.new(0, 0, 0, 30)
+                Slider.BackgroundColor3 = themes.background
+                Slider.BackgroundTransparency = 0.5
+                Slider.Parent = SliderFrame
+
+                local SliderUICorner = Instance.new("UICorner")
+                SliderUICorner.CornerRadius = UDim.new(0, 3)
+                SliderUICorner.Parent = Slider
+
+                local Fill = Instance.new("Frame")
+                Fill.Name = "Fill"
+                Fill.Size = UDim2.new(0, 0, 1, 0)
+                Fill.BackgroundColor3 = themes.accent
+                Fill.BorderSizePixel = 0
+                Fill.Parent = Slider
+
+                local FillUICorner = Instance.new("UICorner")
+                FillUICorner.CornerRadius = UDim.new(0, 3)
+                FillUICorner.Parent = Fill
+
+                local dragging = false
+                Slider.InputBegan:Connect(function(input)
+                    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                        dragging = true
+                    end
+                end)
+
+                Slider.InputEnded:Connect(function(input)
+                    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                        dragging = false
+                    end
+                end)
+
+                UserInputService.InputChanged:Connect(function(input)
+                    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+                        local pos = UDim2.new(0, math.clamp(input.Position.X - Slider.AbsolutePosition.X, 0, Slider.AbsoluteSize.X), 0, 0)
+                        Fill.Size = pos
+                        local value = math.floor(min + (max - min) * (pos.X.Scale))
+                        Label.Text = name .. ": " .. tostring(value)
+                        callback(value)
+                    end
+                end)
+
+                return SliderFrame
+            end,
+
+            CreateButton = function(self, name, callback)
+                local Button = Instance.new("TextButton")
+                Button.Name = name
+                Button.Size = UDim2.new(1, -10, 0, 30)
+                Button.Position = UDim2.new(0, 5, 0, 0)
+                Button.BackgroundColor3 = themes.accent
+                Button.BackgroundTransparency = 0.3
+                Button.Text = name
+                Button.TextColor3 = themes.text
+                Button.Font = Enum.Font.Gotham
+                Button.TextSize = 14
+                Button.Parent = TabContent
+
+                local UICorner = Instance.new("UICorner")
+                UICorner.CornerRadius = UDim.new(0, 6)
+                UICorner.Parent = Button
+
+                Button.MouseButton1Click:Connect(function()
+                    callback()
+                end)
+
+                return Button
+            end
+        }
+    end
+
+    return Library
+end
+
+-- ESP Functions
+local ESP = {
+    enabled = false,
+    players = {},
+    boxes = {}
+}
+
+function ESP:CreateBox(player)
+    local Box = Drawing.new("Square")
+    Box.Visible = false
+    Box.Color = Color3.fromRGB(255, 0, 0)
+    Box.Thickness = 2
+    Box.Filled = false
+
+    local HealthBar = Drawing.new("Square")
+    HealthBar.Visible = false
+    HealthBar.Color = Color3.fromRGB(0, 255, 0)
+    HealthBar.Thickness = 1
+    HealthBar.Filled = true
+
+    local NameLabel = Drawing.new("Text")
+    NameLabel.Visible = false
+    NameLabel.Color = Color3.fromRGB(255, 255, 255)
+    NameLabel.Size = 14
+    NameLabel.Center = true
+    NameLabel.Outline = true
+
+    self.boxes[player] = {Box = Box, HealthBar = HealthBar, NameLabel = NameLabel}
+end
+
+function ESP:UpdateESP()
+    for player, drawings in pairs(self.boxes) do
+        if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local character = player.Character
+            local humanoid = character:FindFirstChild("Humanoid")
+            local rootPart = character.HumanoidRootPart
+
+            local position, onScreen = workspace.CurrentCamera:WorldToViewportPoint(rootPart.Position)
+            
+            if onScreen then
+                local size = Vector2.new(2000 / position.Z, 4000 / position.Z)
+                local position2D = Vector2.new(position.X, position.Y)
+                
+                -- Rainbow ESP
+                local hue = tick() % 5 / 5
+                drawings.Box.Color = Color3.fromHSV(hue, 1, 1)
+                
+                drawings.Box.Size = size
+                drawings.Box.Position = position2D - size / 2
+                drawings.Box.Visible = self.enabled
+
+                if humanoid then
+                    local health = humanoid.Health / humanoid.MaxHealth
+                    local healthSize = Vector2.new(3, size.Y * health)
+                    drawings.HealthBar.Size = healthSize
+                    drawings.HealthBar.Position = position2D - size / 2 - Vector2.new(6, 0) + Vector2.new(0, size.Y * (1 - health))
+                    drawings.HealthBar.Visible = self.enabled
+                end
+
+                drawings.NameLabel.Text = player.Name
+                drawings.NameLabel.Position = position2D + Vector2.new(0, size.Y / 2 + 5)
+                drawings.NameLabel.Visible = self.enabled
+            else
+                for _, drawing in pairs(drawings) do
+                    drawing.Visible = false
+                end
+            end
+        else
+            for _, drawing in pairs(drawings) do
+                drawing.Visible = false
+            end
+        end
+    end
+end
+
+-- Aimbot Functions
+local Aimbot = {
+    enabled = false,
+    target = nil,
+    fov = 100
+}
+
+function Aimbot:FindTarget()
+    local closest = nil
+    local closestDistance = self.fov
+    
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local humanoid = player.Character:FindFirstChild("Humanoid")
+            local rootPart = player.Character:FindFirstChild("HumanoidRootPart")
+            
+            if humanoid and humanoid.Health > 0 and rootPart then
+                local screenPoint = workspace.CurrentCamera:WorldToViewportPoint(rootPart.Position)
+                local mousePosition = UserInputService:GetMouseLocation()
+                local distance = (Vector2.new(screenPoint.X, screenPoint.Y) - mousePosition).Magnitude
+                
+                if distance < closestDistance then
+                    closest = player
+                    closestDistance = distance
+                end
+            end
+        end
+    end
+    
+    return closest
+end
+
+function Aimbot:AimAtTarget()
+    if self.enabled and self.target and self.target.Character then
+        local rootPart = self.target.Character:FindFirstChild("HumanoidRootPart")
+        if rootPart then
+            workspace.CurrentCamera.CFrame = CFrame.new(workspace.CurrentCamera.CFrame.Position, rootPart.Position)
+        end
+    end
+end
+
+-- Hitbox Extender
+local Hitbox = {
+    enabled = false,
+    size = 2
+}
+
+function Hitbox:ExtendHitboxes()
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            for _, part in pairs(player.Character:GetChildren()) do
+                if part:IsA("BasePart") then
+                    part.Size = part.Size * self.size
+                    part.Transparency = 0.5
+                end
+            end
+        end
+    end
+end
+
+-- Initialize Menu
+local Window = Library:CreateWindow("Trident Survival v5")
+
+local VisualsTab = Window:CreateTab("Visuals")
+local CombatTab = Window:CreateTab("Combat")
+local PlayerTab = Window:CreateTab("Player")
+
+-- Visuals Tab
+VisualsTab:CreateToggle("Rainbow ESP", function(state)
+    ESP.enabled = state
+end)
+
+VisualsTab:CreateToggle("Show Health", function(state)
+    -- Health display logic
+end)
+
+VisualsTab:CreateSlider("ESP Distance", 50, 500, function(value)
+    -- Distance limit
+end)
+
+-- Combat Tab
+CombatTab:CreateToggle("Aimbot", function(state)
+    Aimbot.enabled = state
+end)
+
+CombatTab:CreateToggle("Hitbox Extender", function(state)
+    Hitbox.enabled = state
+    if state then
+        Hitbox:ExtendHitboxes()
+    end
+end)
+
+CombatTab:CreateSlider("Aimbot FOV", 10, 300, function(value)
+    Aimbot.fov = value
+end)
+
+CombatTab:CreateSlider("Hitbox Size", 1, 5, function(value)
+    Hitbox.size = value
+    if Hitbox.enabled then
+        Hitbox:ExtendHitboxes()
+    end
+end)
+
+-- Player Tab
+PlayerTab:CreateToggle("God Mode", function(state)
+    -- God mode logic
+end)
+
+PlayerTab:CreateToggle("Speed Hack", function(state)
+    if state then
+        LocalPlayer.Character.Humanoid.WalkSpeed = 50
+    else
+        LocalPlayer.Character.Humanoid.WalkSpeed = 16
+    end
+end)
+
+PlayerTab:CreateSlider("WalkSpeed", 16, 100, function(value)
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        LocalPlayer.Character.Humanoid.WalkSpeed = value
+    end
+end)
+
+-- Кнопка для сброса позиции меню
+PlayerTab:CreateButton("Reset Menu Position", function()
+    local MainFrame = game.CoreGui.LebyssCheatMenu.MainFrame
+    MainFrame.Position = UDim2.new(0.5, -250, 0.5, -200)
+end)
+
+-- Initialize ESP for all players
+for _, player in pairs(Players:GetPlayers()) do
+    if player ~= LocalPlayer then
+        ESP:CreateBox(player)
+    end
+end
+
+Players.PlayerAdded:Connect(function(player)
+    ESP:CreateBox(player)
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+    if ESP.boxes[player] then
+        for _, drawing in pairs(ESP.boxes[player]) do
+            drawing:Remove()
+        end
+        ESP.boxes[player] = nil
+    end
+end)
+
+-- Main loop
+RunService.RenderStepped:Connect(function()
+    if ESP.enabled then
+        ESP:UpdateESP()
+    end
+    
+    if Aimbot.enabled then
+        Aimbot.target = Aimbot:FindTarget()
+        Aimbot:AimAtTarget()
+    end
+end)
+
+-- Toggle menu
+UserInputService.InputBegan:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.RightShift then
+        local menu = game.CoreGui:FindFirstChild("LebyssCheatMenu")
+        if menu then
+            menu.Enabled = not menu.Enabled
+        end
+    end
+end)
+
+print("Lebyss.xys Cheat Menu Loaded! Press RightShift to toggle menu.")
+print("Drag the title bar to move the menu")
+print("Press X button to close/open menu")
