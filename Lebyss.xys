@@ -5,12 +5,18 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService")
 local CoreGui = game:GetService("CoreGui")
 local Workspace = game:GetService("Workspace")
 
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
+local Mouse = LocalPlayer:GetMouse()
+
+-- Key System
+local CorrectKey = "1234321"
+local KeyVerified = false
+local KeyAttempts = 0
+local MaxAttempts = 3
 
 -- Настройки
 local Settings = {
@@ -18,6 +24,7 @@ local Settings = {
     MenuVisible = false,
     EspEnabled = true,
     AimbotEnabled = true,
+    SilentAimEnabled = true,
     ShowNames = true,
     ShowHealth = true,
     ShowWeapon = true,
@@ -26,7 +33,10 @@ local Settings = {
     RainbowEsp = true,
     TeamCheck = true,
     WallCheck = true,
-    AimKey = Enum.UserInputType.MouseButton2
+    AimKey = Enum.UserInputType.MouseButton2,
+    HitChance = 100,
+    SilentAimPart = "Head",
+    ShowTargetLine = true
 }
 
 -- Цвета для радужного ESP
@@ -36,11 +46,72 @@ for i = 0, 360, 5 do
 end
 local currentRainbowIndex = 1
 
+-- Target для Silent Aim
+local CurrentTarget = nil
+local TargetLine = Drawing.new("Line")
+
+-- Настройка Target Line
+TargetLine.Visible = false
+TargetLine.Thickness = 2
+TargetLine.Color = Color3.fromRGB(255, 0, 0)
+
+-- Key System UI
+local KeyGui = Instance.new("ScreenGui")
+KeyGui.Name = "KeySystem"
+KeyGui.Parent = CoreGui
+KeyGui.ResetOnSpawn = false
+
+local KeyFrame = Instance.new("Frame")
+KeyFrame.Size = UDim2.new(0.3, 0, 0.25, 0)
+KeyFrame.Position = UDim2.new(0.35, 0, 0.35, 0)
+KeyFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+KeyFrame.BorderSizePixel = 0
+KeyFrame.Parent = KeyGui
+
+local KeyTitle = Instance.new("TextLabel")
+KeyTitle.Size = UDim2.new(1, 0, 0.2, 0)
+KeyTitle.Position = UDim2.new(0, 0, 0, 0)
+KeyTitle.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+KeyTitle.Text = "LEBYSS.XYS V2 - KEY SYSTEM"
+KeyTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+KeyTitle.TextScaled = true
+KeyTitle.Font = Enum.Font.SciFi
+KeyTitle.Parent = KeyFrame
+
+local KeyInput = Instance.new("TextBox")
+KeyInput.Size = UDim2.new(0.8, 0, 0.3, 0)
+KeyInput.Position = UDim2.new(0.1, 0, 0.25, 0)
+KeyInput.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+KeyInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+KeyInput.PlaceholderText = "Enter key..."
+KeyInput.Text = ""
+KeyInput.TextScaled = true
+KeyInput.Parent = KeyFrame
+
+local KeyButton = Instance.new("TextButton")
+KeyButton.Size = UDim2.new(0.6, 0, 0.25, 0)
+KeyButton.Position = UDim2.new(0.2, 0, 0.6, 0)
+KeyButton.BackgroundColor3 = Color3.fromRGB(50, 100, 200)
+KeyButton.Text = "VERIFY KEY"
+KeyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+KeyButton.TextScaled = true
+KeyButton.Parent = KeyFrame
+
+local KeyStatus = Instance.new("TextLabel")
+KeyStatus.Size = UDim2.new(1, 0, 0.2, 0)
+KeyStatus.Position = UDim2.new(0, 0, 0.85, 0)
+KeyStatus.BackgroundTransparency = 1
+KeyStatus.Text = "Attempts: 0/3"
+KeyStatus.TextColor3 = Color3.fromRGB(255, 255, 255)
+KeyStatus.TextScaled = true
+KeyStatus.Parent = KeyFrame
+
 -- Создание интерфейса
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "LebyssMenu"
 ScreenGui.Parent = CoreGui
 ScreenGui.ResetOnSpawn = false
+ScreenGui.Enabled = false
 
 -- Основной фрейм меню
 local MainFrame = Instance.new("Frame")
@@ -84,7 +155,7 @@ SettingsFrame.Size = UDim2.new(0.9, 0, 0.8, 0)
 SettingsFrame.Position = UDim2.new(0.05, 0, 0.12, 0)
 SettingsFrame.BackgroundTransparency = 1
 SettingsFrame.ScrollBarThickness = 5
-SettingsFrame.CanvasSize = UDim2.new(0, 0, 2, 0)
+SettingsFrame.CanvasSize = UDim2.new(0, 0, 3, 0)
 SettingsFrame.Parent = MainFrame
 
 local UIListLayout = Instance.new("UIListLayout")
@@ -114,9 +185,11 @@ local function CreateToggle(name, setting)
     toggle.Parent = frame
     
     toggle.MouseButton1Click:Connect(function()
-        Settings[setting] = not Settings[setting]
-        toggle.Text = Settings[setting] and "ON" or "OFF"
-        toggle.BackgroundColor3 = Settings[setting] and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(200, 50, 50)
+        if KeyVerified then
+            Settings[setting] = not Settings[setting]
+            toggle.Text = Settings[setting] and "ON" or "OFF"
+            toggle.BackgroundColor3 = Settings[setting] and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(200, 50, 50)
+        end
     end)
     
     frame.Parent = SettingsFrame
@@ -158,6 +231,8 @@ local function CreateSlider(name, setting, min, max)
     button.Parent = slider
     
     button.MouseButton1Down:Connect(function()
+        if not KeyVerified then return end
+        
         local connection
         connection = RunService.RenderStepped:Connect(function()
             local mousePos = UserInputService:GetMouseLocation()
@@ -171,7 +246,9 @@ local function CreateSlider(name, setting, min, max)
         end)
         
         local function disconnect()
-            connection:Disconnect()
+            if connection then
+                connection:Disconnect()
+            end
         end
         
         button.MouseButton1Up:Connect(disconnect)
@@ -182,20 +259,66 @@ local function CreateSlider(name, setting, min, max)
     return slider
 end
 
+local function CreateDropdown(name, setting, options)
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 0, 50)
+    frame.BackgroundTransparency = 1
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0.7, 0, 0.5, 0)
+    label.Position = UDim2.new(0, 0, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = name
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = frame
+    
+    local dropdown = Instance.new("TextButton")
+    dropdown.Size = UDim2.new(0.5, 0, 0.8, 0)
+    dropdown.Position = UDim2.new(0.5, 0, 0.1, 0)
+    dropdown.Text = Settings[setting]
+    dropdown.BackgroundColor3 = Color3.fromRGB(80, 80, 120)
+    dropdown.TextColor3 = Color3.fromRGB(255, 255, 255)
+    dropdown.Parent = frame
+    
+    dropdown.MouseButton1Click:Connect(function()
+        if not KeyVerified then return end
+        
+        local currentIndex
+        for i, option in ipairs(options) do
+            if option == Settings[setting] then
+                currentIndex = i
+                break
+            end
+        end
+        currentIndex = currentIndex or 1
+        local nextIndex = (currentIndex % #options) + 1
+        Settings[setting] = options[nextIndex]
+        dropdown.Text = Settings[setting]
+    end)
+    
+    frame.Parent = SettingsFrame
+    return dropdown
+end
+
 -- Создание элементов управления
 CreateToggle("ESP", "EspEnabled")
 CreateToggle("Aimbot", "AimbotEnabled")
+CreateToggle("Silent Aim", "SilentAimEnabled")
 CreateToggle("Show Names", "ShowNames")
 CreateToggle("Show Health", "ShowHealth")
 CreateToggle("Show Weapon", "ShowWeapon")
 CreateToggle("Rainbow ESP", "RainbowEsp")
 CreateToggle("Team Check", "TeamCheck")
 CreateToggle("Wall Check", "WallCheck")
+CreateToggle("Target Line", "ShowTargetLine")
 CreateSlider("FOV Size", "FOV", 50, 360)
+CreateSlider("Hit Chance", "HitChance", 0, 100)
+CreateDropdown("Silent Aim Part", "SilentAimPart", {"Head", "HumanoidRootPart", "Torso"})
 
 -- FOV Circle для аимбота
 local FOVCircle = Drawing.new("Circle")
-FOVCircle.Visible = Settings.FOVVisible and Settings.AimbotEnabled
+FOVCircle.Visible = Settings.FOVVisible and Settings.AimbotEnabled and KeyVerified
 FOVCircle.Radius = Settings.FOV
 FOVCircle.Color = Color3.fromRGB(255, 255, 255)
 FOVCircle.Thickness = 2
@@ -212,6 +335,7 @@ function CreateESP(player)
         Name = Drawing.new("Text"),
         Health = Drawing.new("Text"),
         Weapon = Drawing.new("Text"),
+        TargetLine = Drawing.new("Line"),
         Player = player
     }
     
@@ -234,6 +358,10 @@ function CreateESP(player)
     esp.Weapon.Center = true
     esp.Weapon.Outline = true
     
+    esp.TargetLine.Visible = false
+    esp.TargetLine.Thickness = 3
+    esp.TargetLine.Color = Color3.fromRGB(255, 0, 0)
+    
     ESPObjects[player] = esp
 end
 
@@ -244,18 +372,20 @@ function RemoveESP(player)
             ESPObjects[player].Name:Remove()
             ESPObjects[player].Health:Remove()
             ESPObjects[player].Weapon:Remove()
+            ESPObjects[player].TargetLine:Remove()
         end)
         ESPObjects[player] = nil
     end
 end
 
 function UpdateESP()
-    if not Settings.EspEnabled then
+    if not Settings.EspEnabled or not KeyVerified then
         for player, esp in pairs(ESPObjects) do
             esp.Box.Visible = false
             esp.Name.Visible = false
             esp.Health.Visible = false
             esp.Weapon.Visible = false
+            esp.TargetLine.Visible = false
         end
         return
     end
@@ -274,7 +404,11 @@ function UpdateESP()
                 if Settings.RainbowEsp then
                     espColor = RainbowColors[currentRainbowIndex]
                 else
-                    espColor = player.Team ~= LocalPlayer.Team and Color3.fromRGB(255, 50, 50) or Color3.fromRGB(50, 255, 50)
+                    if player.Team and LocalPlayer.Team and player.Team ~= LocalPlayer.Team then
+                        espColor = Color3.fromRGB(255, 50, 50)
+                    else
+                        espColor = Color3.fromRGB(50, 255, 50)
+                    end
                 end
                 
                 -- Бокс ESP
@@ -320,41 +454,56 @@ function UpdateESP()
                 else
                     esp.Weapon.Visible = false
                 end
+                
+                -- Радужная палка на цель
+                if player == CurrentTarget and Settings.ShowTargetLine then
+                    local screenPos = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
+                    esp.TargetLine.From = screenPos
+                    esp.TargetLine.To = Vector2.new(position.X, position.Y)
+                    esp.TargetLine.Color = RainbowColors[currentRainbowIndex]
+                    esp.TargetLine.Visible = true
+                else
+                    esp.TargetLine.Visible = false
+                end
             else
                 esp.Box.Visible = false
                 esp.Name.Visible = false
                 esp.Health.Visible = false
                 esp.Weapon.Visible = false
+                esp.TargetLine.Visible = false
             end
         else
             esp.Box.Visible = false
             esp.Name.Visible = false
             esp.Health.Visible = false
             esp.Weapon.Visible = false
+            esp.TargetLine.Visible = false
         end
     end
 end
 
 -- Aimbot функция
 function GetClosestPlayer()
-    if not Settings.AimbotEnabled then return nil end
+    if not Settings.AimbotEnabled or not KeyVerified then return nil end
     
     local closestPlayer = nil
     local closestDistance = Settings.FOV
     
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Humanoid") and player.Character:FindFirstChild("HumanoidRootPart") then
-            if Settings.TeamCheck and player.Team == LocalPlayer.Team then continue end
-            
-            local position, onScreen = Camera:WorldToViewportPoint(player.Character.HumanoidRootPart.Position)
-            
-            if onScreen then
-                local mousePos = UserInputService:GetMouseLocation()
-                local distance = (Vector2.new(position.X, position.Y) - mousePos).Magnitude
+            if Settings.TeamCheck and player.Team and LocalPlayer.Team and player.Team == LocalPlayer.Team then
+                -- Пропускаем союзников
+            else
+                local position, onScreen = Camera:WorldToViewportPoint(player.Character.HumanoidRootPart.Position)
                 
-                if distance < closestDistance then
-                    closestDistance = distance
-                    closestPlayer = player
+                if onScreen then
+                    local mousePos = UserInputService:GetMouseLocation()
+                    local distance = (Vector2.new(position.X, position.Y) - mousePos).Magnitude
+                    
+                    if distance < closestDistance then
+                        closestDistance = distance
+                        closestPlayer = player
+                    end
                 end
             end
         end
@@ -363,9 +512,82 @@ function GetClosestPlayer()
     return closestPlayer
 end
 
+-- Silent Aim функция
+local function GetSilentAimTarget()
+    if not Settings.SilentAimEnabled or not KeyVerified then return nil end
+    
+    local target = GetClosestPlayer()
+    if target and target.Character and math.random(1, 100) <= Settings.HitChance then
+        local aimPart = target.Character:FindFirstChild(Settings.SilentAimPart)
+        if aimPart then
+            return aimPart.Position
+        end
+    end
+    return nil
+end
+
+-- Hook для мыши
+local OriginalMouseTarget
+OriginalMouseTarget = getrawmetatable(game).__index
+setreadonly(getrawmetatable(game), false)
+
+getrawmetatable(game).__index = newcclosure(function(self, key)
+    if key == "Target" and Settings.SilentAimEnabled and KeyVerified then
+        local silentAimPos = GetSilentAimTarget()
+        if silentAimPos then
+            return Workspace.CurrentCamera:WorldToScreenPoint(silentAimPos)
+        end
+    end
+    return OriginalMouseTarget(self, key)
+end)
+
+setreadonly(getrawmetatable(game), true)
+
+-- Hook для выстрелов
+local function WeaponHook()
+    if not Settings.SilentAimEnabled or not KeyVerified then return end
+    
+    local target = GetClosestPlayer()
+    if target and target.Character then
+        CurrentTarget = target
+        local aimPart = target.Character:FindFirstChild(Settings.SilentAimPart)
+        if aimPart then
+            return aimPart.Position
+        end
+    end
+    CurrentTarget = nil
+    return nil
+end
+
+-- Key System функция
+KeyButton.MouseButton1Click:Connect(function()
+    local inputKey = KeyInput.Text:gsub("%s+", "")
+    
+    if inputKey == CorrectKey then
+        KeyVerified = true
+        KeyGui.Enabled = false
+        ScreenGui.Enabled = true
+        FOVCircle.Visible = Settings.FOVVisible and Settings.AimbotEnabled
+        print("Key verified successfully! Lebyss.xys V2 activated.")
+    else
+        KeyAttempts = KeyAttempts + 1
+        KeyStatus.Text = "Attempts: " .. KeyAttempts .. "/3 - WRONG KEY!"
+        KeyStatus.TextColor3 = Color3.fromRGB(255, 50, 50)
+        
+        if KeyAttempts >= MaxAttempts then
+            KeyButton.Visible = false
+            KeyInput.Visible = false
+            KeyStatus.Text = "MAX ATTEMPTS REACHED - CLOSING"
+            wait(2)
+            KeyGui:Destroy()
+            ScreenGui:Destroy()
+        end
+    end
+end)
+
 -- Обработка ввода
 UserInputService.InputBegan:Connect(function(input)
-    if input.KeyCode == Settings.MenuKey then
+    if input.KeyCode == Settings.MenuKey and KeyVerified then
         Settings.MenuVisible = not Settings.MenuVisible
         MainFrame.Visible = Settings.MenuVisible
         
@@ -399,6 +621,8 @@ end
 
 -- Основной цикл
 RunService.RenderStepped:Connect(function()
+    if not KeyVerified then return end
+    
     -- Обновление FOV круга
     FOVCircle.Visible = Settings.FOVVisible and Settings.AimbotEnabled
     FOVCircle.Radius = Settings.FOV
@@ -420,6 +644,13 @@ RunService.RenderStepped:Connect(function()
             Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetPos)
         end
     end
+    
+    -- Автоматическое обновление цели для Silent Aim
+    if Settings.SilentAimEnabled then
+        CurrentTarget = GetClosestPlayer()
+    else
+        CurrentTarget = nil
+    end
 end)
 
 -- Адаптация для телефона
@@ -432,6 +663,7 @@ if UserInputService.TouchEnabled then
     TouchButton.Text = "Menu"
     TouchButton.TextColor3 = Color3.fromRGB(255, 255, 255)
     TouchButton.TextScaled = true
+    TouchButton.Visible = KeyVerified
     TouchButton.Parent = ScreenGui
     
     TouchButton.MouseButton1Click:Connect(function()
@@ -441,5 +673,5 @@ if UserInputService.TouchEnabled then
     end)
 end
 
-print("Lebyss.xys V2 loaded! | discord.gg/kigjm65")
-print("Press Insert to toggle menu.")
+print("Lebyss.xys V2 Key System loaded!")
+print("Please enter the key to activate the cheat.")
