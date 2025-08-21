@@ -7,6 +7,7 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local CoreGui = game:GetService("CoreGui")
 local Workspace = game:GetService("Workspace")
+local Lighting = game:GetService("Lighting")
 
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
@@ -28,15 +29,18 @@ local Settings = {
     ShowNames = true,
     ShowHealth = true,
     ShowWeapon = true,
-    FOV = 120,
-    FOVVisible = true,
     RainbowEsp = true,
     TeamCheck = true,
     WallCheck = true,
     AimKey = Enum.UserInputType.MouseButton2,
     HitChance = 100,
     SilentAimPart = "Head",
-    ShowTargetLine = true
+    ShowTargetLine = true,
+    RainbowWeapon = true,
+    WeaponRainbowSpeed = 5,
+    HitboxesEnabled = true,
+    HitboxesColor = Color3.fromRGB(255, 0, 0),
+    HitboxesTransparency = 0.7
 }
 
 -- Цвета для радужного ESP
@@ -54,6 +58,21 @@ local TargetLine = Drawing.new("Line")
 TargetLine.Visible = false
 TargetLine.Thickness = 2
 TargetLine.Color = Color3.fromRGB(255, 0, 0)
+
+-- Для радужного оружия
+local WeaponConnections = {}
+local CurrentWeapon = nil
+local RainbowWeaponColors = {}
+
+-- Для хитбоксов
+local Hitboxes = {}
+local HitboxParts = {"Head", "HumanoidRootPart", "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg"}
+
+-- Генерация радужных цветов для оружия
+for i = 0, 360, 2 do
+    table.insert(RainbowWeaponColors, Color3.fromHSV(i/360, 1, 1))
+end
+local currentWeaponColorIndex = 1
 
 -- Key System UI
 local KeyGui = Instance.new("ScreenGui")
@@ -136,7 +155,7 @@ Title.TextScaled = true
 Title.Font = Enum.Font.SciFi
 Title.Parent = MainFrame
 
--- Кнопка закрытия для телефона
+-- Кнопка закрытия для телефоне
 local CloseButton = Instance.new("TextButton")
 CloseButton.Name = "CloseButton"
 CloseButton.Size = UDim2.new(0.15, 0, 0.08, 0)
@@ -155,7 +174,7 @@ SettingsFrame.Size = UDim2.new(0.9, 0, 0.8, 0)
 SettingsFrame.Position = UDim2.new(0.05, 0, 0.12, 0)
 SettingsFrame.BackgroundTransparency = 1
 SettingsFrame.ScrollBarThickness = 5
-SettingsFrame.CanvasSize = UDim2.new(0, 0, 3, 0)
+SettingsFrame.CanvasSize = UDim2.new(0, 0, 4, 0)
 SettingsFrame.Parent = MainFrame
 
 local UIListLayout = Instance.new("UIListLayout")
@@ -189,6 +208,11 @@ local function CreateToggle(name, setting)
             Settings[setting] = not Settings[setting]
             toggle.Text = Settings[setting] and "ON" or "OFF"
             toggle.BackgroundColor3 = Settings[setting] and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(200, 50, 50)
+            
+            -- Обновляем хитбоксы при изменении настроек
+            if setting == "HitboxesEnabled" then
+                UpdateHitboxes()
+            end
         end
     end)
     
@@ -312,17 +336,11 @@ CreateToggle("Rainbow ESP", "RainbowEsp")
 CreateToggle("Team Check", "TeamCheck")
 CreateToggle("Wall Check", "WallCheck")
 CreateToggle("Target Line", "ShowTargetLine")
-CreateSlider("FOV Size", "FOV", 50, 360)
+CreateToggle("Rainbow Weapon", "RainbowWeapon")
+CreateToggle("Hitboxes", "HitboxesEnabled")
 CreateSlider("Hit Chance", "HitChance", 0, 100)
+CreateSlider("Weapon Speed", "WeaponRainbowSpeed", 1, 20)
 CreateDropdown("Silent Aim Part", "SilentAimPart", {"Head", "HumanoidRootPart", "Torso"})
-
--- FOV Circle для аимбота
-local FOVCircle = Drawing.new("Circle")
-FOVCircle.Visible = Settings.FOVVisible and Settings.AimbotEnabled and KeyVerified
-FOVCircle.Radius = Settings.FOV
-FOVCircle.Color = Color3.fromRGB(255, 255, 255)
-FOVCircle.Thickness = 2
-FOVCircle.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
 
 -- ESP функции
 local ESPObjects = {}
@@ -482,12 +500,69 @@ function UpdateESP()
     end
 end
 
+-- Функции для хитбоксов
+function CreateHitboxes(player)
+    if Hitboxes[player] or not player.Character then return end
+    
+    local hitboxData = {
+        Boxes = {},
+        Player = player
+    }
+    
+    for _, partName in ipairs(HitboxParts) do
+        local part = player.Character:FindFirstChild(partName)
+        if part then
+            local box = Instance.new("BoxHandleAdornment")
+            box.Name = "Hitbox_" .. partName
+            box.Adornee = part
+            box.AlwaysOnTop = true
+            box.ZIndex = 10
+            box.Size = part.Size + Vector3.new(0.1, 0.1, 0.1)
+            box.Color3 = Settings.HitboxesColor
+            box.Transparency = Settings.HitboxesTransparency
+            box.Visible = Settings.HitboxesEnabled and KeyVerified
+            box.Parent = part
+            
+            hitboxData.Boxes[partName] = box
+        end
+    end
+    
+    Hitboxes[player] = hitboxData
+end
+
+function RemoveHitboxes(player)
+    if Hitboxes[player] then
+        for partName, box in pairs(Hitboxes[player].Boxes) do
+            if box and box.Parent then
+                box:Destroy()
+            end
+        end
+        Hitboxes[player] = nil
+    end
+end
+
+function UpdateHitboxes()
+    for player, hitboxData in pairs(Hitboxes) do
+        if player and player.Character then
+            for partName, box in pairs(hitboxData.Boxes) do
+                if box and box.Parent then
+                    box.Visible = Settings.HitboxesEnabled and KeyVerified
+                    box.Color3 = Settings.HitboxesColor
+                    box.Transparency = Settings.HitboxesTransparency
+                end
+            end
+        else
+            RemoveHitboxes(player)
+        end
+    end
+end
+
 -- Aimbot функция
 function GetClosestPlayer()
     if not Settings.AimbotEnabled or not KeyVerified then return nil end
     
     local closestPlayer = nil
-    local closestDistance = Settings.FOV
+    local closestDistance = math.huge
     
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Humanoid") and player.Character:FindFirstChild("HumanoidRootPart") then
@@ -526,6 +601,92 @@ local function GetSilentAimTarget()
     return nil
 end
 
+-- Функция для радужного оружия
+function ApplyRainbowWeapon()
+    if not Settings.RainbowWeapon or not KeyVerified or not LocalPlayer.Character then return end
+    
+    -- Очищаем предыдущие соединения
+    for _, connection in pairs(WeaponConnections) do
+        connection:Disconnect()
+    end
+    WeaponConnections = {}
+    
+    -- Ищем оружие в инвентаре и руках
+    for _, tool in ipairs(LocalPlayer.Character:GetChildren()) do
+        if tool:IsA("Tool") then
+            ApplyRainbowToTool(tool)
+        end
+    end
+    
+    -- Слушаем добавление нового оружия
+    local connection = LocalPlayer.Character.ChildAdded:Connect(function(child)
+        if child:IsA("Tool") then
+            ApplyRainbowToTool(child)
+        end
+    end)
+    table.insert(WeaponConnections, connection)
+end
+
+function ApplyRainbowToTool(tool)
+    -- Применяем радужный эффект ко всем частям оружия
+    for _, part in ipairs(tool:GetDescendants()) do
+        if part:IsA("BasePart") then
+            local originalColor = part.Color
+            local originalMaterial = part.Material
+            
+            coroutine.wrap(function()
+                while tool.Parent ~= nil and Settings.RainbowWeapon and KeyVerified do
+                    if part and part.Parent then
+                        part.Color = RainbowWeaponColors[currentWeaponColorIndex]
+                        part.Material = Enum.Material.Neon
+                        
+                        -- Создаем свечение если его нет
+                        local glow = part:FindFirstChild("RainbowGlow") or Instance.new("SurfaceLight")
+                        glow.Name = "RainbowGlow"
+                        glow.Brightness = 5
+                        glow.Range = 10
+                        glow.Color = RainbowWeaponColors[currentWeaponColorIndex]
+                        glow.Parent = part
+                    end
+                    wait(1 / Settings.WeaponRainbowSpeed)
+                end
+                
+                -- Восстанавливаем оригинальные свойства
+                if part and part.Parent then
+                    part.Color = originalColor
+                    part.Material = originalMaterial
+                    local glow = part:FindFirstChild("RainbowGlow")
+                    if glow then
+                        glow:Destroy()
+                    end
+                end
+            end)()
+        end
+    end
+end
+
+function RemoveRainbowWeapon()
+    for _, connection in pairs(WeaponConnections) do
+        connection:Disconnect()
+    end
+    WeaponConnections = {}
+    
+    if LocalPlayer.Character then
+        for _, tool in ipairs(LocalPlayer.Character:GetChildren()) do
+            if tool:IsA("Tool") then
+                for _, part in ipairs(tool:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        local glow = part:FindFirstChild("RainbowGlow")
+                        if glow then
+                            glow:Destroy()
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
 -- Hook для мыши
 local OriginalMouseTarget
 OriginalMouseTarget = getrawmetatable(game).__index
@@ -543,22 +704,6 @@ end)
 
 setreadonly(getrawmetatable(game), true)
 
--- Hook для выстрелов
-local function WeaponHook()
-    if not Settings.SilentAimEnabled or not KeyVerified then return end
-    
-    local target = GetClosestPlayer()
-    if target and target.Character then
-        CurrentTarget = target
-        local aimPart = target.Character:FindFirstChild(Settings.SilentAimPart)
-        if aimPart then
-            return aimPart.Position
-        end
-    end
-    CurrentTarget = nil
-    return nil
-end
-
 -- Key System функция
 KeyButton.MouseButton1Click:Connect(function()
     local inputKey = KeyInput.Text:gsub("%s+", "")
@@ -567,7 +712,19 @@ KeyButton.MouseButton1Click:Connect(function()
         KeyVerified = true
         KeyGui.Enabled = false
         ScreenGui.Enabled = true
-        FOVCircle.Visible = Settings.FOVVisible and Settings.AimbotEnabled
+        
+        -- Применяем радужное оружие после верификации
+        if LocalPlayer.Character then
+            ApplyRainbowWeapon()
+        end
+        
+        -- Создаем хитбоксы для всех игроков
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer then
+                CreateHitboxes(player)
+            end
+        end
+        
         print("Key verified successfully! Lebyss.xys V2 activated.")
     else
         KeyAttempts = KeyAttempts + 1
@@ -607,34 +764,927 @@ end)
 -- Инициализация ESP для всех игроков
 Players.PlayerAdded:Connect(function(player)
     CreateESP(player)
+    if KeyVerified then
+        CreateHitboxes(player)
+    end
 end)
 
 Players.PlayerRemoving:Connect(function(player)
     RemoveESP(player)
+    RemoveHitboxes(player)
 end)
 
 for _, player in ipairs(Players:GetPlayers()) do
     if player ~= LocalPlayer then
         CreateESP(player)
+        if KeyVerified then
+            CreateHitboxes(player)
+        end
     end
 end
+
+-- Слушаем изменение персонажа для радужного оружия
+LocalPlayer.CharacterAdded:Connect(function(character)
+    if KeyVerified and Settings.RainbowWeapon then
+        wait(1) -- Ждем полной загрузки персонажа
+        ApplyRainbowWeapon()
+    end
+end)
+
+-- Слушаем изменение персонажей для хитбоксов
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function(character)
+        if KeyVerified and player ~= LocalPlayer then
+            wait(1)
+            CreateHitboxes(player)
+        end
+    end)
+end)
 
 -- Основной цикл
 RunService.RenderStepped:Connect(function()
     if not KeyVerified then return end
-    
-    -- Обновление FOV круга
-    FOVCircle.Visible = Settings.FOVVisible and Settings.AimbotEnabled
-    FOVCircle.Radius = Settings.FOV
-    FOVCircle.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
     
     -- Радужный эффект
     if Settings.RainbowEsp then
         currentRainbowIndex = (currentRainbowIndex % #RainbowColors) + 1
     end
     
+    -- Радужный эффект для оружия
+    if Settings.RainbowWeapon then
+        currentWeaponColorIndex = (currentWeaponColorIndex % #RainbowWeaponColors) + 1
+    else
+        RemoveRainbowWeapon()
+    end
+    
     -- Обновление ESP
     UpdateESP()
+    
+    -- Обновление хитбоксов
+    UpdateHitboxes()
+    
+    -- Aimbot
+    if Settings.AimbotEnabled and UserInputService:IsMouseButtonPressed(Settings.AimKey) then
+        local target = GetClosestPlayer()
+        if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+            local targetPos = target.Character.HumanoidRootPart.Position
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetPos)
+        end
+    end
+    
+    -- Автоматическое обновление цели для Silent Aim
+    if Settings.SilentAimEnabled then
+        CurrentTarget = GetClosestPlayer()
+    else
+        CurrentTarget = nil
+    end
+end)
+
+-- Адаптация для телефона
+if UserInputService.TouchEnabled then
+    local TouchButton = Instance.new("TextButton")
+    TouchButton.Name = "TouchToggle"
+    TouchButton.Size = UDim2.new(0.1, 0, 0.1, 0)
+    TouchButton.Position = UDim2.new(0.9, 0, 0.9, 0)
+    TouchButton.BackgroundColor3 = Color3.fromRGB(50, 100, 200)
+    TouchButton.Text = "Menu"
+    TouchButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    TouchButton.TextScaled = true
+    TouchButton.Visible = KeyVerified
+    TouchButton.Parent = ScreenGui
+    
+    TouchButton.MouseButton1Click:Connect(function()
+        Settings.MenuVisible = not Settings.MenuVisible
+        MainFrame.Visible = Settings.MenuVisible
+        CloseButton.Visible = Settings.MenuVisible
+    end)
+end
+
+print("Lebyss.xys V2 Key System loaded!")
+print("Please enter the key to activate the cheat.")-- Lebyss.xys discord.gg/kigjm65 V2
+-- Trident Survival v5 Menu Script
+-- Активация: Insert, на телефоне - кнопка на экране
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
+local Workspace = game:GetService("Workspace")
+local Lighting = game:GetService("Lighting")
+
+local LocalPlayer = Players.LocalPlayer
+local Camera = Workspace.CurrentCamera
+local Mouse = LocalPlayer:GetMouse()
+
+-- Key System
+local CorrectKey = "1234321"
+local KeyVerified = false
+local KeyAttempts = 0
+local MaxAttempts = 3
+
+-- Настройки
+local Settings = {
+    MenuKey = Enum.KeyCode.Insert,
+    MenuVisible = false,
+    EspEnabled = true,
+    AimbotEnabled = true,
+    SilentAimEnabled = true,
+    ShowNames = true,
+    ShowHealth = true,
+    ShowWeapon = true,
+    RainbowEsp = true,
+    TeamCheck = true,
+    WallCheck = true,
+    AimKey = Enum.UserInputType.MouseButton2,
+    HitChance = 100,
+    SilentAimPart = "Head",
+    ShowTargetLine = true,
+    RainbowWeapon = true,
+    WeaponRainbowSpeed = 5,
+    HitboxesEnabled = true,
+    HitboxesColor = Color3.fromRGB(255, 0, 0),
+    HitboxesTransparency = 0.7
+}
+
+-- Цвета для радужного ESP
+local RainbowColors = {}
+for i = 0, 360, 5 do
+    table.insert(RainbowColors, Color3.fromHSV(i/360, 1, 1))
+end
+local currentRainbowIndex = 1
+
+-- Target для Silent Aim
+local CurrentTarget = nil
+local TargetLine = Drawing.new("Line")
+
+-- Настройка Target Line
+TargetLine.Visible = false
+TargetLine.Thickness = 2
+TargetLine.Color = Color3.fromRGB(255, 0, 0)
+
+-- Для радужного оружия
+local WeaponConnections = {}
+local CurrentWeapon = nil
+local RainbowWeaponColors = {}
+
+-- Для хитбоксов
+local Hitboxes = {}
+local HitboxParts = {"Head", "HumanoidRootPart", "Torso", "Left Arm", "Right Arm", "Left Leg", "Right Leg"}
+
+-- Генерация радужных цветов для оружия
+for i = 0, 360, 2 do
+    table.insert(RainbowWeaponColors, Color3.fromHSV(i/360, 1, 1))
+end
+local currentWeaponColorIndex = 1
+
+-- Key System UI
+local KeyGui = Instance.new("ScreenGui")
+KeyGui.Name = "KeySystem"
+KeyGui.Parent = CoreGui
+KeyGui.ResetOnSpawn = false
+
+local KeyFrame = Instance.new("Frame")
+KeyFrame.Size = UDim2.new(0.3, 0, 0.25, 0)
+KeyFrame.Position = UDim2.new(0.35, 0, 0.35, 0)
+KeyFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+KeyFrame.BorderSizePixel = 0
+KeyFrame.Parent = KeyGui
+
+local KeyTitle = Instance.new("TextLabel")
+KeyTitle.Size = UDim2.new(1, 0, 0.2, 0)
+KeyTitle.Position = UDim2.new(0, 0, 0, 0)
+KeyTitle.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+KeyTitle.Text = "LEBYSS.XYS V2 - KEY SYSTEM"
+KeyTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+KeyTitle.TextScaled = true
+KeyTitle.Font = Enum.Font.SciFi
+KeyTitle.Parent = KeyFrame
+
+local KeyInput = Instance.new("TextBox")
+KeyInput.Size = UDim2.new(0.8, 0, 0.3, 0)
+KeyInput.Position = UDim2.new(0.1, 0, 0.25, 0)
+KeyInput.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+KeyInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+KeyInput.PlaceholderText = "Enter key..."
+KeyInput.Text = ""
+KeyInput.TextScaled = true
+KeyInput.Parent = KeyFrame
+
+local KeyButton = Instance.new("TextButton")
+KeyButton.Size = UDim2.new(0.6, 0, 0.25, 0)
+KeyButton.Position = UDim2.new(0.2, 0, 0.6, 0)
+KeyButton.BackgroundColor3 = Color3.fromRGB(50, 100, 200)
+KeyButton.Text = "VERIFY KEY"
+KeyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+KeyButton.TextScaled = true
+KeyButton.Parent = KeyFrame
+
+local KeyStatus = Instance.new("TextLabel")
+KeyStatus.Size = UDim2.new(1, 0, 0.2, 0)
+KeyStatus.Position = UDim2.new(0, 0, 0.85, 0)
+KeyStatus.BackgroundTransparency = 1
+KeyStatus.Text = "Attempts: 0/3"
+KeyStatus.TextColor3 = Color3.fromRGB(255, 255, 255)
+KeyStatus.TextScaled = true
+KeyStatus.Parent = KeyFrame
+
+-- Создание интерфейса
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "LebyssMenu"
+ScreenGui.Parent = CoreGui
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Enabled = false
+
+-- Основной фрейм меню
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(1, 0, 1, 0)
+MainFrame.Position = UDim2.new(0, 0, 0, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+MainFrame.BackgroundTransparency = 0.1
+MainFrame.BorderSizePixel = 0
+MainFrame.Visible = false
+MainFrame.Parent = ScreenGui
+
+-- Заголовок
+local Title = Instance.new("TextLabel")
+Title.Name = "Title"
+Title.Size = UDim2.new(1, 0, 0.1, 0)
+Title.Position = UDim2.new(0, 0, 0, 0)
+Title.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+Title.Text = "LEBYSS.XYS V2 | discord.gg/kigjm65"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextScaled = true
+Title.Font = Enum.Font.SciFi
+Title.Parent = MainFrame
+
+-- Кнопка закрытия для телефоне
+local CloseButton = Instance.new("TextButton")
+CloseButton.Name = "CloseButton"
+CloseButton.Size = UDim2.new(0.15, 0, 0.08, 0)
+CloseButton.Position = UDim2.new(0.85, 0, 0.02, 0)
+CloseButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+CloseButton.Text = "X"
+CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseButton.TextScaled = true
+CloseButton.Visible = false
+CloseButton.Parent = MainFrame
+
+-- Контейнер для настроек
+local SettingsFrame = Instance.new("ScrollingFrame")
+SettingsFrame.Name = "SettingsFrame"
+SettingsFrame.Size = UDim2.new(0.9, 0, 0.8, 0)
+SettingsFrame.Position = UDim2.new(0.05, 0, 0.12, 0)
+SettingsFrame.BackgroundTransparency = 1
+SettingsFrame.ScrollBarThickness = 5
+SettingsFrame.CanvasSize = UDim2.new(0, 0, 4, 0)
+SettingsFrame.Parent = MainFrame
+
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.Parent = SettingsFrame
+UIListLayout.Padding = UDim.new(0, 10)
+
+-- Функции для создания элементов UI
+local function CreateToggle(name, setting)
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 0, 40)
+    frame.BackgroundTransparency = 1
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0.7, 0, 1, 0)
+    label.Position = UDim2.new(0, 0, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = name
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = frame
+    
+    local toggle = Instance.new("TextButton")
+    toggle.Size = UDim2.new(0.2, 0, 0.8, 0)
+    toggle.Position = UDim2.new(0.75, 0, 0.1, 0)
+    toggle.Text = Settings[setting] and "ON" or "OFF"
+    toggle.BackgroundColor3 = Settings[setting] and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(200, 50, 50)
+    toggle.Parent = frame
+    
+    toggle.MouseButton1Click:Connect(function()
+        if KeyVerified then
+            Settings[setting] = not Settings[setting]
+            toggle.Text = Settings[setting] and "ON" or "OFF"
+            toggle.BackgroundColor3 = Settings[setting] and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(200, 50, 50)
+            
+            -- Обновляем хитбоксы при изменении настроек
+            if setting == "HitboxesEnabled" then
+                UpdateHitboxes()
+            end
+        end
+    end)
+    
+    frame.Parent = SettingsFrame
+    return toggle
+end
+
+local function CreateSlider(name, setting, min, max)
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 0, 60)
+    frame.BackgroundTransparency = 1
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 0.5, 0)
+    label.Position = UDim2.new(0, 0, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = name .. ": " .. Settings[setting]
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = frame
+    
+    local slider = Instance.new("Frame")
+    slider.Size = UDim2.new(1, 0, 0.3, 0)
+    slider.Position = UDim2.new(0, 0, 0.5, 0)
+    slider.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+    slider.BorderSizePixel = 0
+    slider.Parent = frame
+    
+    local fill = Instance.new("Frame")
+    fill.Size = UDim2.new((Settings[setting] - min) / (max - min), 0, 1, 0)
+    fill.Position = UDim2.new(0, 0, 0, 0)
+    fill.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+    fill.BorderSizePixel = 0
+    fill.Parent = slider
+    
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.new(1, 0, 1, 0)
+    button.BackgroundTransparency = 1
+    button.Text = ""
+    button.Parent = slider
+    
+    button.MouseButton1Down:Connect(function()
+        if not KeyVerified then return end
+        
+        local connection
+        connection = RunService.RenderStepped:Connect(function()
+            local mousePos = UserInputService:GetMouseLocation()
+            local sliderPos = slider.AbsolutePosition
+            local sliderSize = slider.AbsoluteSize
+            local percent = math.clamp((mousePos.X - sliderPos.X) / sliderSize.X, 0, 1)
+            local value = math.floor(min + percent * (max - min))
+            Settings[setting] = value
+            fill.Size = UDim2.new(percent, 0, 1, 0)
+            label.Text = name .. ": " .. value
+        end)
+        
+        local function disconnect()
+            if connection then
+                connection:Disconnect()
+            end
+        end
+        
+        button.MouseButton1Up:Connect(disconnect)
+        button.MouseLeave:Connect(disconnect)
+    end)
+    
+    frame.Parent = SettingsFrame
+    return slider
+end
+
+local function CreateDropdown(name, setting, options)
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 0, 50)
+    frame.BackgroundTransparency = 1
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0.7, 0, 0.5, 0)
+    label.Position = UDim2.new(0, 0, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = name
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = frame
+    
+    local dropdown = Instance.new("TextButton")
+    dropdown.Size = UDim2.new(0.5, 0, 0.8, 0)
+    dropdown.Position = UDim2.new(0.5, 0, 0.1, 0)
+    dropdown.Text = Settings[setting]
+    dropdown.BackgroundColor3 = Color3.fromRGB(80, 80, 120)
+    dropdown.TextColor3 = Color3.fromRGB(255, 255, 255)
+    dropdown.Parent = frame
+    
+    dropdown.MouseButton1Click:Connect(function()
+        if not KeyVerified then return end
+        
+        local currentIndex
+        for i, option in ipairs(options) do
+            if option == Settings[setting] then
+                currentIndex = i
+                break
+            end
+        end
+        currentIndex = currentIndex or 1
+        local nextIndex = (currentIndex % #options) + 1
+        Settings[setting] = options[nextIndex]
+        dropdown.Text = Settings[setting]
+    end)
+    
+    frame.Parent = SettingsFrame
+    return dropdown
+end
+
+-- Создание элементов управления
+CreateToggle("ESP", "EspEnabled")
+CreateToggle("Aimbot", "AimbotEnabled")
+CreateToggle("Silent Aim", "SilentAimEnabled")
+CreateToggle("Show Names", "ShowNames")
+CreateToggle("Show Health", "ShowHealth")
+CreateToggle("Show Weapon", "ShowWeapon")
+CreateToggle("Rainbow ESP", "RainbowEsp")
+CreateToggle("Team Check", "TeamCheck")
+CreateToggle("Wall Check", "WallCheck")
+CreateToggle("Target Line", "ShowTargetLine")
+CreateToggle("Rainbow Weapon", "RainbowWeapon")
+CreateToggle("Hitboxes", "HitboxesEnabled")
+CreateSlider("Hit Chance", "HitChance", 0, 100)
+CreateSlider("Weapon Speed", "WeaponRainbowSpeed", 1, 20)
+CreateDropdown("Silent Aim Part", "SilentAimPart", {"Head", "HumanoidRootPart", "Torso"})
+
+-- ESP функции
+local ESPObjects = {}
+
+function CreateESP(player)
+    if ESPObjects[player] then return end
+    
+    local esp = {
+        Box = Drawing.new("Square"),
+        Name = Drawing.new("Text"),
+        Health = Drawing.new("Text"),
+        Weapon = Drawing.new("Text"),
+        TargetLine = Drawing.new("Line"),
+        Player = player
+    }
+    
+    esp.Box.Visible = false
+    esp.Box.Thickness = 2
+    esp.Box.Filled = false
+    
+    esp.Name.Visible = false
+    esp.Name.Size = 16
+    esp.Name.Center = true
+    esp.Name.Outline = true
+    
+    esp.Health.Visible = false
+    esp.Health.Size = 14
+    esp.Health.Center = true
+    esp.Health.Outline = true
+    
+    esp.Weapon.Visible = false
+    esp.Weapon.Size = 14
+    esp.Weapon.Center = true
+    esp.Weapon.Outline = true
+    
+    esp.TargetLine.Visible = false
+    esp.TargetLine.Thickness = 3
+    esp.TargetLine.Color = Color3.fromRGB(255, 0, 0)
+    
+    ESPObjects[player] = esp
+end
+
+function RemoveESP(player)
+    if ESPObjects[player] then
+        pcall(function()
+            ESPObjects[player].Box:Remove()
+            ESPObjects[player].Name:Remove()
+            ESPObjects[player].Health:Remove()
+            ESPObjects[player].Weapon:Remove()
+            ESPObjects[player].TargetLine:Remove()
+        end)
+        ESPObjects[player] = nil
+    end
+end
+
+function UpdateESP()
+    if not Settings.EspEnabled or not KeyVerified then
+        for player, esp in pairs(ESPObjects) do
+            esp.Box.Visible = false
+            esp.Name.Visible = false
+            esp.Health.Visible = false
+            esp.Weapon.Visible = false
+            esp.TargetLine.Visible = false
+        end
+        return
+    end
+    
+    for player, esp in pairs(ESPObjects) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Humanoid") and player.Character:FindFirstChild("HumanoidRootPart") then
+            local character = player.Character
+            local humanoid = character.Humanoid
+            local rootPart = character.HumanoidRootPart
+            
+            local position, onScreen = Camera:WorldToViewportPoint(rootPart.Position)
+            
+            if onScreen then
+                -- Радужные цвета
+                local espColor
+                if Settings.RainbowEsp then
+                    espColor = RainbowColors[currentRainbowIndex]
+                else
+                    if player.Team and LocalPlayer.Team and player.Team ~= LocalPlayer.Team then
+                        espColor = Color3.fromRGB(255, 50, 50)
+                    else
+                        espColor = Color3.fromRGB(50, 255, 50)
+                    end
+                end
+                
+                -- Бокс ESP
+                local size = Vector2.new(2000 / position.Z, 3000 / position.Z)
+                esp.Box.Size = size
+                esp.Box.Position = Vector2.new(position.X - size.X/2, position.Y - size.Y/2)
+                esp.Box.Color = espColor
+                esp.Box.Visible = true
+                
+                -- Имя игрока
+                if Settings.ShowNames then
+                    esp.Name.Text = player.Name
+                    esp.Name.Position = Vector2.new(position.X, position.Y - size.Y/2 - 20)
+                    esp.Name.Color = espColor
+                    esp.Name.Visible = true
+                else
+                    esp.Name.Visible = false
+                end
+                
+                -- ХП
+                if Settings.ShowHealth then
+                    esp.Health.Text = "HP: " .. math.floor(humanoid.Health) .. "/" .. math.floor(humanoid.MaxHealth)
+                    esp.Health.Position = Vector2.new(position.X, position.Y + size.Y/2 + 5)
+                    esp.Health.Color = Color3.fromRGB(255, 255, 255)
+                    esp.Health.Visible = true
+                else
+                    esp.Health.Visible = false
+                end
+                
+                -- Оружие
+                if Settings.ShowWeapon then
+                    local weapon = "No Weapon"
+                    for _, tool in ipairs(character:GetChildren()) do
+                        if tool:IsA("Tool") then
+                            weapon = tool.Name
+                            break
+                        end
+                    end
+                    esp.Weapon.Text = weapon
+                    esp.Weapon.Position = Vector2.new(position.X, position.Y + size.Y/2 + 25)
+                    esp.Weapon.Color = Color3.fromRGB(200, 200, 0)
+                    esp.Weapon.Visible = true
+                else
+                    esp.Weapon.Visible = false
+                end
+                
+                -- Радужная палка на цель
+                if player == CurrentTarget and Settings.ShowTargetLine then
+                    local screenPos = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
+                    esp.TargetLine.From = screenPos
+                    esp.TargetLine.To = Vector2.new(position.X, position.Y)
+                    esp.TargetLine.Color = RainbowColors[currentRainbowIndex]
+                    esp.TargetLine.Visible = true
+                else
+                    esp.TargetLine.Visible = false
+                end
+            else
+                esp.Box.Visible = false
+                esp.Name.Visible = false
+                esp.Health.Visible = false
+                esp.Weapon.Visible = false
+                esp.TargetLine.Visible = false
+            end
+        else
+            esp.Box.Visible = false
+            esp.Name.Visible = false
+            esp.Health.Visible = false
+            esp.Weapon.Visible = false
+            esp.TargetLine.Visible = false
+        end
+    end
+end
+
+-- Функции для хитбоксов
+function CreateHitboxes(player)
+    if Hitboxes[player] or not player.Character then return end
+    
+    local hitboxData = {
+        Boxes = {},
+        Player = player
+    }
+    
+    for _, partName in ipairs(HitboxParts) do
+        local part = player.Character:FindFirstChild(partName)
+        if part then
+            local box = Instance.new("BoxHandleAdornment")
+            box.Name = "Hitbox_" .. partName
+            box.Adornee = part
+            box.AlwaysOnTop = true
+            box.ZIndex = 10
+            box.Size = part.Size + Vector3.new(0.1, 0.1, 0.1)
+            box.Color3 = Settings.HitboxesColor
+            box.Transparency = Settings.HitboxesTransparency
+            box.Visible = Settings.HitboxesEnabled and KeyVerified
+            box.Parent = part
+            
+            hitboxData.Boxes[partName] = box
+        end
+    end
+    
+    Hitboxes[player] = hitboxData
+end
+
+function RemoveHitboxes(player)
+    if Hitboxes[player] then
+        for partName, box in pairs(Hitboxes[player].Boxes) do
+            if box and box.Parent then
+                box:Destroy()
+            end
+        end
+        Hitboxes[player] = nil
+    end
+end
+
+function UpdateHitboxes()
+    for player, hitboxData in pairs(Hitboxes) do
+        if player and player.Character then
+            for partName, box in pairs(hitboxData.Boxes) do
+                if box and box.Parent then
+                    box.Visible = Settings.HitboxesEnabled and KeyVerified
+                    box.Color3 = Settings.HitboxesColor
+                    box.Transparency = Settings.HitboxesTransparency
+                end
+            end
+        else
+            RemoveHitboxes(player)
+        end
+    end
+end
+
+-- Aimbot функция
+function GetClosestPlayer()
+    if not Settings.AimbotEnabled or not KeyVerified then return nil end
+    
+    local closestPlayer = nil
+    local closestDistance = math.huge
+    
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Humanoid") and player.Character:FindFirstChild("HumanoidRootPart") then
+            if Settings.TeamCheck and player.Team and LocalPlayer.Team and player.Team == LocalPlayer.Team then
+                -- Пропускаем союзников
+            else
+                local position, onScreen = Camera:WorldToViewportPoint(player.Character.HumanoidRootPart.Position)
+                
+                if onScreen then
+                    local mousePos = UserInputService:GetMouseLocation()
+                    local distance = (Vector2.new(position.X, position.Y) - mousePos).Magnitude
+                    
+                    if distance < closestDistance then
+                        closestDistance = distance
+                        closestPlayer = player
+                    end
+                end
+            end
+        end
+    end
+    
+    return closestPlayer
+end
+
+-- Silent Aim функция
+local function GetSilentAimTarget()
+    if not Settings.SilentAimEnabled or not KeyVerified then return nil end
+    
+    local target = GetClosestPlayer()
+    if target and target.Character and math.random(1, 100) <= Settings.HitChance then
+        local aimPart = target.Character:FindFirstChild(Settings.SilentAimPart)
+        if aimPart then
+            return aimPart.Position
+        end
+    end
+    return nil
+end
+
+-- Функция для радужного оружия
+function ApplyRainbowWeapon()
+    if not Settings.RainbowWeapon or not KeyVerified or not LocalPlayer.Character then return end
+    
+    -- Очищаем предыдущие соединения
+    for _, connection in pairs(WeaponConnections) do
+        connection:Disconnect()
+    end
+    WeaponConnections = {}
+    
+    -- Ищем оружие в инвентаре и руках
+    for _, tool in ipairs(LocalPlayer.Character:GetChildren()) do
+        if tool:IsA("Tool") then
+            ApplyRainbowToTool(tool)
+        end
+    end
+    
+    -- Слушаем добавление нового оружия
+    local connection = LocalPlayer.Character.ChildAdded:Connect(function(child)
+        if child:IsA("Tool") then
+            ApplyRainbowToTool(child)
+        end
+    end)
+    table.insert(WeaponConnections, connection)
+end
+
+function ApplyRainbowToTool(tool)
+    -- Применяем радужный эффект ко всем частям оружия
+    for _, part in ipairs(tool:GetDescendants()) do
+        if part:IsA("BasePart") then
+            local originalColor = part.Color
+            local originalMaterial = part.Material
+            
+            coroutine.wrap(function()
+                while tool.Parent ~= nil and Settings.RainbowWeapon and KeyVerified do
+                    if part and part.Parent then
+                        part.Color = RainbowWeaponColors[currentWeaponColorIndex]
+                        part.Material = Enum.Material.Neon
+                        
+                        -- Создаем свечение если его нет
+                        local glow = part:FindFirstChild("RainbowGlow") or Instance.new("SurfaceLight")
+                        glow.Name = "RainbowGlow"
+                        glow.Brightness = 5
+                        glow.Range = 10
+                        glow.Color = RainbowWeaponColors[currentWeaponColorIndex]
+                        glow.Parent = part
+                    end
+                    wait(1 / Settings.WeaponRainbowSpeed)
+                end
+                
+                -- Восстанавливаем оригинальные свойства
+                if part and part.Parent then
+                    part.Color = originalColor
+                    part.Material = originalMaterial
+                    local glow = part:FindFirstChild("RainbowGlow")
+                    if glow then
+                        glow:Destroy()
+                    end
+                end
+            end)()
+        end
+    end
+end
+
+function RemoveRainbowWeapon()
+    for _, connection in pairs(WeaponConnections) do
+        connection:Disconnect()
+    end
+    WeaponConnections = {}
+    
+    if LocalPlayer.Character then
+        for _, tool in ipairs(LocalPlayer.Character:GetChildren()) do
+            if tool:IsA("Tool") then
+                for _, part in ipairs(tool:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        local glow = part:FindFirstChild("RainbowGlow")
+                        if glow then
+                            glow:Destroy()
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- Hook для мыши
+local OriginalMouseTarget
+OriginalMouseTarget = getrawmetatable(game).__index
+setreadonly(getrawmetatable(game), false)
+
+getrawmetatable(game).__index = newcclosure(function(self, key)
+    if key == "Target" and Settings.SilentAimEnabled and KeyVerified then
+        local silentAimPos = GetSilentAimTarget()
+        if silentAimPos then
+            return Workspace.CurrentCamera:WorldToScreenPoint(silentAimPos)
+        end
+    end
+    return OriginalMouseTarget(self, key)
+end)
+
+setreadonly(getrawmetatable(game), true)
+
+-- Key System функция
+KeyButton.MouseButton1Click:Connect(function()
+    local inputKey = KeyInput.Text:gsub("%s+", "")
+    
+    if inputKey == CorrectKey then
+        KeyVerified = true
+        KeyGui.Enabled = false
+        ScreenGui.Enabled = true
+        
+        -- Применяем радужное оружие после верификации
+        if LocalPlayer.Character then
+            ApplyRainbowWeapon()
+        end
+        
+        -- Создаем хитбоксы для всех игроков
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer then
+                CreateHitboxes(player)
+            end
+        end
+        
+        print("Key verified successfully! Lebyss.xys V2 activated.")
+    else
+        KeyAttempts = KeyAttempts + 1
+        KeyStatus.Text = "Attempts: " .. KeyAttempts .. "/3 - WRONG KEY!"
+        KeyStatus.TextColor3 = Color3.fromRGB(255, 50, 50)
+        
+        if KeyAttempts >= MaxAttempts then
+            KeyButton.Visible = false
+            KeyInput.Visible = false
+            KeyStatus.Text = "MAX ATTEMPTS REACHED - CLOSING"
+            wait(2)
+            KeyGui:Destroy()
+            ScreenGui:Destroy()
+        end
+    end
+end)
+
+-- Обработка ввода
+UserInputService.InputBegan:Connect(function(input)
+    if input.KeyCode == Settings.MenuKey and KeyVerified then
+        Settings.MenuVisible = not Settings.MenuVisible
+        MainFrame.Visible = Settings.MenuVisible
+        
+        -- Показывать кнопку закрытия на телефоне
+        if UserInputService.TouchEnabled then
+            CloseButton.Visible = Settings.MenuVisible
+        end
+    end
+end)
+
+CloseButton.MouseButton1Click:Connect(function()
+    Settings.MenuVisible = false
+    MainFrame.Visible = false
+    CloseButton.Visible = false
+end)
+
+-- Инициализация ESP для всех игроков
+Players.PlayerAdded:Connect(function(player)
+    CreateESP(player)
+    if KeyVerified then
+        CreateHitboxes(player)
+    end
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+    RemoveESP(player)
+    RemoveHitboxes(player)
+end)
+
+for _, player in ipairs(Players:GetPlayers()) do
+    if player ~= LocalPlayer then
+        CreateESP(player)
+        if KeyVerified then
+            CreateHitboxes(player)
+        end
+    end
+end
+
+-- Слушаем изменение персонажа для радужного оружия
+LocalPlayer.CharacterAdded:Connect(function(character)
+    if KeyVerified and Settings.RainbowWeapon then
+        wait(1) -- Ждем полной загрузки персонажа
+        ApplyRainbowWeapon()
+    end
+end)
+
+-- Слушаем изменение персонажей для хитбоксов
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function(character)
+        if KeyVerified and player ~= LocalPlayer then
+            wait(1)
+            CreateHitboxes(player)
+        end
+    end)
+end)
+
+-- Основной цикл
+RunService.RenderStepped:Connect(function()
+    if not KeyVerified then return end
+    
+    -- Радужный эффект
+    if Settings.RainbowEsp then
+        currentRainbowIndex = (currentRainbowIndex % #RainbowColors) + 1
+    end
+    
+    -- Радужный эффект для оружия
+    if Settings.RainbowWeapon then
+        currentWeaponColorIndex = (currentWeaponColorIndex % #RainbowWeaponColors) + 1
+    else
+        RemoveRainbowWeapon()
+    end
+    
+    -- Обновление ESP
+    UpdateESP()
+    
+    -- Обновление хитбоксов
+    UpdateHitboxes()
     
     -- Aimbot
     if Settings.AimbotEnabled and UserInputService:IsMouseButtonPressed(Settings.AimKey) then
