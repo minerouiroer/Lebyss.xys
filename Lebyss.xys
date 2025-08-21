@@ -1,7 +1,7 @@
 -- Lebyss.xys discord.gg/kigjm65 V2
 -- Trident Survival v5 Menu Script
 -- Активация: Insert, на телефоне - кнопка на экране
-
+setfflag('DebugRunParallelLuaOnMainThread','True');
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
