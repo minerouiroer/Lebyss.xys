@@ -1,569 +1,445 @@
--- Lebyss.xys/discord.gg/ki57ct5 V2
--- Rainbow Cheat Menu for Trident Survival v5
+-- Lebyss.xys discord.gg/kigjm65 V2
+-- Trident Survival v5 Menu Script
+-- Активация: Insert, на телефоне - кнопка на экране
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
-local Lighting = game:GetService("Lighting")
+local CoreGui = game:GetService("CoreGui")
+local Workspace = game:GetService("Workspace")
 
 local LocalPlayer = Players.LocalPlayer
-local Mouse = LocalPlayer:GetMouse()
+local Camera = Workspace.CurrentCamera
 
--- GUI Library
-local Library = {}
-local themes = {
-    background = Color3.fromRGB(20, 20, 30),
-    accent = Color3.fromRGB(0, 100, 255),
-    text = Color3.fromRGB(255, 255, 255),
-    rainbow = true
+-- Настройки
+local Settings = {
+    MenuKey = Enum.KeyCode.Insert,
+    MenuVisible = false,
+    EspEnabled = true,
+    AimbotEnabled = true,
+    ShowNames = true,
+    ShowHealth = true,
+    ShowWeapon = true,
+    FOV = 120,
+    FOVVisible = true,
+    RainbowEsp = true,
+    TeamCheck = true,
+    WallCheck = true,
+    AimKey = Enum.UserInputType.MouseButton2
 }
 
-function Library:CreateWindow(name)
-    local ScreenGui = Instance.new("ScreenGui")
-    ScreenGui.Name = "LebyssCheatMenu"
-    ScreenGui.Parent = game.CoreGui
-    ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+-- Цвета для радужного ESP
+local RainbowColors = {}
+for i = 0, 360, 5 do
+    table.insert(RainbowColors, Color3.fromHSV(i/360, 1, 1))
+end
+local currentRainbowIndex = 1
 
-    local MainFrame = Instance.new("Frame")
-    MainFrame.Name = "MainFrame"
-    MainFrame.Size = UDim2.new(0, 500, 0, 400)
-    MainFrame.Position = UDim2.new(0.5, -250, 0.5, -200)
-    MainFrame.BackgroundColor3 = themes.background
-    MainFrame.BackgroundTransparency = 0.1
-    MainFrame.BorderSizePixel = 0
-    MainFrame.Parent = ScreenGui
+-- Создание интерфейса
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "LebyssMenu"
+ScreenGui.Parent = CoreGui
+ScreenGui.ResetOnSpawn = false
 
-    local UICorner = Instance.new("UICorner")
-    UICorner.CornerRadius = UDim.new(0, 8)
-    UICorner.Parent = MainFrame
+-- Основной фрейм меню
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(1, 0, 1, 0)
+MainFrame.Position = UDim2.new(0, 0, 0, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+MainFrame.BackgroundTransparency = 0.1
+MainFrame.BorderSizePixel = 0
+MainFrame.Visible = false
+MainFrame.Parent = ScreenGui
 
-    local Title = Instance.new("TextLabel")
-    Title.Name = "Title"
-    Title.Size = UDim2.new(1, 0, 0, 30)
-    Title.Position = UDim2.new(0, 0, 0, 0)
-    Title.BackgroundTransparency = 1
-    Title.Text = "Lebyss.xys | " .. name
-    Title.TextColor3 = themes.text
-    Title.Font = Enum.Font.GothamBold
-    Title.TextSize = 16
-    Title.Parent = MainFrame
+-- Заголовок
+local Title = Instance.new("TextLabel")
+Title.Name = "Title"
+Title.Size = UDim2.new(1, 0, 0.1, 0)
+Title.Position = UDim2.new(0, 0, 0, 0)
+Title.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+Title.Text = "LEBYSS.XYS V2 | discord.gg/kigjm65"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextScaled = true
+Title.Font = Enum.Font.SciFi
+Title.Parent = MainFrame
 
-    -- Добавляем кнопку закрытия
-    local CloseButton = Instance.new("TextButton")
-    CloseButton.Name = "CloseButton"
-    CloseButton.Size = UDim2.new(0, 25, 0, 25)
-    CloseButton.Position = UDim2.new(1, -30, 0, 5)
-    CloseButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
-    CloseButton.Text = "X"
-    CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-    CloseButton.Font = Enum.Font.GothamBold
-    CloseButton.TextSize = 14
-    CloseButton.Parent = MainFrame
+-- Кнопка закрытия для телефона
+local CloseButton = Instance.new("TextButton")
+CloseButton.Name = "CloseButton"
+CloseButton.Size = UDim2.new(0.15, 0, 0.08, 0)
+CloseButton.Position = UDim2.new(0.85, 0, 0.02, 0)
+CloseButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+CloseButton.Text = "X"
+CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseButton.TextScaled = true
+CloseButton.Visible = false
+CloseButton.Parent = MainFrame
 
-    local CloseUICorner = Instance.new("UICorner")
-    CloseUICorner.CornerRadius = UDim.new(0, 12)
-    CloseUICorner.Parent = CloseButton
+-- Контейнер для настроек
+local SettingsFrame = Instance.new("ScrollingFrame")
+SettingsFrame.Name = "SettingsFrame"
+SettingsFrame.Size = UDim2.new(0.9, 0, 0.8, 0)
+SettingsFrame.Position = UDim2.new(0.05, 0, 0.12, 0)
+SettingsFrame.BackgroundTransparency = 1
+SettingsFrame.ScrollBarThickness = 5
+SettingsFrame.CanvasSize = UDim2.new(0, 0, 2, 0)
+SettingsFrame.Parent = MainFrame
 
-    CloseButton.MouseButton1Click:Connect(function()
-        ScreenGui.Enabled = not ScreenGui.Enabled
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.Parent = SettingsFrame
+UIListLayout.Padding = UDim.new(0, 10)
+
+-- Функции для создания элементов UI
+local function CreateToggle(name, setting)
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 0, 40)
+    frame.BackgroundTransparency = 1
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0.7, 0, 1, 0)
+    label.Position = UDim2.new(0, 0, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = name
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = frame
+    
+    local toggle = Instance.new("TextButton")
+    toggle.Size = UDim2.new(0.2, 0, 0.8, 0)
+    toggle.Position = UDim2.new(0.75, 0, 0.1, 0)
+    toggle.Text = Settings[setting] and "ON" or "OFF"
+    toggle.BackgroundColor3 = Settings[setting] and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(200, 50, 50)
+    toggle.Parent = frame
+    
+    toggle.MouseButton1Click:Connect(function()
+        Settings[setting] = not Settings[setting]
+        toggle.Text = Settings[setting] and "ON" or "OFF"
+        toggle.BackgroundColor3 = Settings[setting] and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(200, 50, 50)
     end)
+    
+    frame.Parent = SettingsFrame
+    return toggle
+end
 
-    local RainbowBorder = Instance.new("Frame")
-    RainbowBorder.Name = "RainbowBorder"
-    RainbowBorder.Size = UDim2.new(1, 0, 0, 2)
-    RainbowBorder.Position = UDim2.new(0, 0, 0, 30)
-    RainbowBorder.BackgroundTransparency = 0
-    RainbowBorder.BorderSizePixel = 0
-    RainbowBorder.Parent = MainFrame
-
-    local TabButtons = Instance.new("Frame")
-    TabButtons.Name = "TabButtons"
-    TabButtons.Size = UDim2.new(0, 120, 0, 340)
-    TabButtons.Position = UDim2.new(0, 10, 0, 40)
-    TabButtons.BackgroundTransparency = 1
-    TabButtons.Parent = MainFrame
-
-    local Content = Instance.new("Frame")
-    Content.Name = "Content"
-    Content.Size = UDim2.new(0, 350, 0, 340)
-    Content.Position = UDim2.new(0, 140, 0, 40)
-    Content.BackgroundTransparency = 1
-    Content.Parent = MainFrame
-
-    -- Функционал перемещения меню
-    local dragging = false
-    local dragInput, dragStart, startPos
-
-    local function update(input)
-        local delta = input.Position - dragStart
-        MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-    end
-
-    Title.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = true
-            dragStart = input.Position
-            startPos = MainFrame.Position
-            
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                end
-            end)
-        end
-    end)
-
-    Title.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement then
-            dragInput = input
-        end
-    end)
-
-    UserInputService.InputChanged:Connect(function(input)
-        if input == dragInput and dragging then
-            update(input)
-        end
-    end)
-
-    -- Rainbow effect
-    local rainbowColors = {
-        Color3.fromRGB(255, 0, 0),
-        Color3.fromRGB(255, 165, 0),
-        Color3.fromRGB(255, 255, 0),
-        Color3.fromRGB(0, 255, 0),
-        Color3.fromRGB(0, 0, 255),
-        Color3.fromRGB(75, 0, 130),
-        Color3.fromRGB(238, 130, 238)
-    }
-
-    local currentColorIndex = 1
-    RunService.Heartbeat:Connect(function()
-        if themes.rainbow then
-            RainbowBorder.BackgroundColor3 = rainbowColors[currentColorIndex]
-            currentColorIndex = (currentColorIndex % #rainbowColors) + 1
-        end
-    end)
-
-    local tabs = {}
-    function Library:CreateTab(name)
-        local TabButton = Instance.new("TextButton")
-        TabButton.Name = name .. "TabButton"
-        TabButton.Size = UDim2.new(1, -10, 0, 30)
-        TabButton.Position = UDim2.new(0, 5, 0, #tabs * 35)
-        TabButton.BackgroundColor3 = themes.accent
-        TabButton.BackgroundTransparency = 0.7
-        TabButton.Text = name
-        TabButton.TextColor3 = themes.text
-        TabButton.Font = Enum.Font.Gotham
-        TabButton.TextSize = 14
-        TabButton.Parent = TabButtons
-
-        local TabUICorner = Instance.new("UICorner")
-        TabUICorner.CornerRadius = UDim.new(0, 6)
-        TabUICorner.Parent = TabButton
-
-        local TabContent = Instance.new("ScrollingFrame")
-        TabContent.Name = name .. "Content"
-        TabContent.Size = UDim2.new(1, 0, 1, 0)
-        TabContent.Position = UDim2.new(0, 0, 0, 0)
-        TabContent.BackgroundTransparency = 1
-        TabContent.Visible = false
-        TabContent.ScrollBarThickness = 3
-        TabContent.Parent = Content
-
-        local UIListLayout = Instance.new("UIListLayout")
-        UIListLayout.Parent = TabContent
-        UIListLayout.Padding = UDim.new(0, 5)
-
-        TabButton.MouseButton1Click:Connect(function()
-            for _, tab in pairs(tabs) do
-                tab.Content.Visible = false
-                tab.Button.BackgroundTransparency = 0.7
-            end
-            TabContent.Visible = true
-            TabButton.BackgroundTransparency = 0.3
+local function CreateSlider(name, setting, min, max)
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 0, 60)
+    frame.BackgroundTransparency = 1
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, 0, 0.5, 0)
+    label.Position = UDim2.new(0, 0, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = name .. ": " .. Settings[setting]
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = frame
+    
+    local slider = Instance.new("Frame")
+    slider.Size = UDim2.new(1, 0, 0.3, 0)
+    slider.Position = UDim2.new(0, 0, 0.5, 0)
+    slider.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+    slider.BorderSizePixel = 0
+    slider.Parent = frame
+    
+    local fill = Instance.new("Frame")
+    fill.Size = UDim2.new((Settings[setting] - min) / (max - min), 0, 1, 0)
+    fill.Position = UDim2.new(0, 0, 0, 0)
+    fill.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+    fill.BorderSizePixel = 0
+    fill.Parent = slider
+    
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.new(1, 0, 1, 0)
+    button.BackgroundTransparency = 1
+    button.Text = ""
+    button.Parent = slider
+    
+    button.MouseButton1Down:Connect(function()
+        local connection
+        connection = RunService.RenderStepped:Connect(function()
+            local mousePos = UserInputService:GetMouseLocation()
+            local sliderPos = slider.AbsolutePosition
+            local sliderSize = slider.AbsoluteSize
+            local percent = math.clamp((mousePos.X - sliderPos.X) / sliderSize.X, 0, 1)
+            local value = math.floor(min + percent * (max - min))
+            Settings[setting] = value
+            fill.Size = UDim2.new(percent, 0, 1, 0)
+            label.Text = name .. ": " .. value
         end)
-
-        local tab = {Button = TabButton, Content = TabContent}
-        table.insert(tabs, tab)
-        if #tabs == 1 then
-            TabContent.Visible = true
-            TabButton.BackgroundTransparency = 0.3
+        
+        local function disconnect()
+            connection:Disconnect()
         end
+        
+        button.MouseButton1Up:Connect(disconnect)
+        button.MouseLeave:Connect(disconnect)
+    end)
+    
+    frame.Parent = SettingsFrame
+    return slider
+end
 
-        return {
-            CreateToggle = function(self, name, callback)
-                local Toggle = Instance.new("TextButton")
-                Toggle.Name = name
-                Toggle.Size = UDim2.new(1, -10, 0, 30)
-                Toggle.Position = UDim2.new(0, 5, 0, 0)
-                Toggle.BackgroundColor3 = themes.background
-                Toggle.BackgroundTransparency = 0.5
-                Toggle.Text = name
-                Toggle.TextColor3 = themes.text
-                Toggle.Font = Enum.Font.Gotham
-                Toggle.TextSize = 14
-                Toggle.Parent = TabContent
+-- Создание элементов управления
+CreateToggle("ESP", "EspEnabled")
+CreateToggle("Aimbot", "AimbotEnabled")
+CreateToggle("Show Names", "ShowNames")
+CreateToggle("Show Health", "ShowHealth")
+CreateToggle("Show Weapon", "ShowWeapon")
+CreateToggle("Rainbow ESP", "RainbowEsp")
+CreateToggle("Team Check", "TeamCheck")
+CreateToggle("Wall Check", "WallCheck")
+CreateSlider("FOV Size", "FOV", 50, 360)
 
-                local UICorner = Instance.new("UICorner")
-                UICorner.CornerRadius = UDim.new(0, 6)
-                UICorner.Parent = Toggle
+-- FOV Circle для аимбота
+local FOVCircle = Drawing.new("Circle")
+FOVCircle.Visible = Settings.FOVVisible and Settings.AimbotEnabled
+FOVCircle.Radius = Settings.FOV
+FOVCircle.Color = Color3.fromRGB(255, 255, 255)
+FOVCircle.Thickness = 2
+FOVCircle.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
 
-                local state = false
-                Toggle.MouseButton1Click:Connect(function()
-                    state = not state
-                    if state then
-                        Toggle.BackgroundColor3 = themes.accent
-                    else
-                        Toggle.BackgroundColor3 = themes.background
-                    end
-                    callback(state)
-                end)
+-- ESP функции
+local ESPObjects = {}
 
-                return Toggle
-            end,
+function CreateESP(player)
+    if ESPObjects[player] then return end
+    
+    local esp = {
+        Box = Drawing.new("Square"),
+        Name = Drawing.new("Text"),
+        Health = Drawing.new("Text"),
+        Weapon = Drawing.new("Text"),
+        Player = player
+    }
+    
+    esp.Box.Visible = false
+    esp.Box.Thickness = 2
+    esp.Box.Filled = false
+    
+    esp.Name.Visible = false
+    esp.Name.Size = 16
+    esp.Name.Center = true
+    esp.Name.Outline = true
+    
+    esp.Health.Visible = false
+    esp.Health.Size = 14
+    esp.Health.Center = true
+    esp.Health.Outline = true
+    
+    esp.Weapon.Visible = false
+    esp.Weapon.Size = 14
+    esp.Weapon.Center = true
+    esp.Weapon.Outline = true
+    
+    ESPObjects[player] = esp
+end
 
-            CreateSlider = function(self, name, min, max, callback)
-                local SliderFrame = Instance.new("Frame")
-                SliderFrame.Name = name
-                SliderFrame.Size = UDim2.new(1, -10, 0, 50)
-                SliderFrame.BackgroundTransparency = 1
-                SliderFrame.Parent = TabContent
-
-                local Label = Instance.new("TextLabel")
-                Label.Name = "Label"
-                Label.Size = UDim2.new(1, 0, 0, 20)
-                Label.BackgroundTransparency = 1
-                Label.Text = name .. ": " .. tostring(min)
-                Label.TextColor3 = themes.text
-                Label.Font = Enum.Font.Gotham
-                Label.TextSize = 14
-                Label.Parent = SliderFrame
-
-                local Slider = Instance.new("Frame")
-                Slider.Name = "Slider"
-                Slider.Size = UDim2.new(1, 0, 0, 10)
-                Slider.Position = UDim2.new(0, 0, 0, 30)
-                Slider.BackgroundColor3 = themes.background
-                Slider.BackgroundTransparency = 0.5
-                Slider.Parent = SliderFrame
-
-                local SliderUICorner = Instance.new("UICorner")
-                SliderUICorner.CornerRadius = UDim.new(0, 3)
-                SliderUICorner.Parent = Slider
-
-                local Fill = Instance.new("Frame")
-                Fill.Name = "Fill"
-                Fill.Size = UDim2.new(0, 0, 1, 0)
-                Fill.BackgroundColor3 = themes.accent
-                Fill.BorderSizePixel = 0
-                Fill.Parent = Slider
-
-                local FillUICorner = Instance.new("UICorner")
-                FillUICorner.CornerRadius = UDim.new(0, 3)
-                FillUICorner.Parent = Fill
-
-                local dragging = false
-                Slider.InputBegan:Connect(function(input)
-                    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                        dragging = true
-                    end
-                end)
-
-                Slider.InputEnded:Connect(function(input)
-                    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                        dragging = false
-                    end
-                end)
-
-                UserInputService.InputChanged:Connect(function(input)
-                    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-                        local pos = UDim2.new(0, math.clamp(input.Position.X - Slider.AbsolutePosition.X, 0, Slider.AbsoluteSize.X), 0, 0)
-                        Fill.Size = pos
-                        local value = math.floor(min + (max - min) * (pos.X.Scale))
-                        Label.Text = name .. ": " .. tostring(value)
-                        callback(value)
-                    end
-                end)
-
-                return SliderFrame
-            end,
-
-            CreateButton = function(self, name, callback)
-                local Button = Instance.new("TextButton")
-                Button.Name = name
-                Button.Size = UDim2.new(1, -10, 0, 30)
-                Button.Position = UDim2.new(0, 5, 0, 0)
-                Button.BackgroundColor3 = themes.accent
-                Button.BackgroundTransparency = 0.3
-                Button.Text = name
-                Button.TextColor3 = themes.text
-                Button.Font = Enum.Font.Gotham
-                Button.TextSize = 14
-                Button.Parent = TabContent
-
-                local UICorner = Instance.new("UICorner")
-                UICorner.CornerRadius = UDim.new(0, 6)
-                UICorner.Parent = Button
-
-                Button.MouseButton1Click:Connect(function()
-                    callback()
-                end)
-
-                return Button
-            end
-        }
+function RemoveESP(player)
+    if ESPObjects[player] then
+        pcall(function()
+            ESPObjects[player].Box:Remove()
+            ESPObjects[player].Name:Remove()
+            ESPObjects[player].Health:Remove()
+            ESPObjects[player].Weapon:Remove()
+        end)
+        ESPObjects[player] = nil
     end
-
-    return Library
 end
 
--- ESP Functions
-local ESP = {
-    enabled = false,
-    players = {},
-    boxes = {}
-}
-
-function ESP:CreateBox(player)
-    local Box = Drawing.new("Square")
-    Box.Visible = false
-    Box.Color = Color3.fromRGB(255, 0, 0)
-    Box.Thickness = 2
-    Box.Filled = false
-
-    local HealthBar = Drawing.new("Square")
-    HealthBar.Visible = false
-    HealthBar.Color = Color3.fromRGB(0, 255, 0)
-    HealthBar.Thickness = 1
-    HealthBar.Filled = true
-
-    local NameLabel = Drawing.new("Text")
-    NameLabel.Visible = false
-    NameLabel.Color = Color3.fromRGB(255, 255, 255)
-    NameLabel.Size = 14
-    NameLabel.Center = true
-    NameLabel.Outline = true
-
-    self.boxes[player] = {Box = Box, HealthBar = HealthBar, NameLabel = NameLabel}
-end
-
-function ESP:UpdateESP()
-    for player, drawings in pairs(self.boxes) do
-        if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+function UpdateESP()
+    if not Settings.EspEnabled then
+        for player, esp in pairs(ESPObjects) do
+            esp.Box.Visible = false
+            esp.Name.Visible = false
+            esp.Health.Visible = false
+            esp.Weapon.Visible = false
+        end
+        return
+    end
+    
+    for player, esp in pairs(ESPObjects) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Humanoid") and player.Character:FindFirstChild("HumanoidRootPart") then
             local character = player.Character
-            local humanoid = character:FindFirstChild("Humanoid")
+            local humanoid = character.Humanoid
             local rootPart = character.HumanoidRootPart
-
-            local position, onScreen = workspace.CurrentCamera:WorldToViewportPoint(rootPart.Position)
+            
+            local position, onScreen = Camera:WorldToViewportPoint(rootPart.Position)
             
             if onScreen then
-                local size = Vector2.new(2000 / position.Z, 4000 / position.Z)
-                local position2D = Vector2.new(position.X, position.Y)
-                
-                -- Rainbow ESP
-                local hue = tick() % 5 / 5
-                drawings.Box.Color = Color3.fromHSV(hue, 1, 1)
-                
-                drawings.Box.Size = size
-                drawings.Box.Position = position2D - size / 2
-                drawings.Box.Visible = self.enabled
-
-                if humanoid then
-                    local health = humanoid.Health / humanoid.MaxHealth
-                    local healthSize = Vector2.new(3, size.Y * health)
-                    drawings.HealthBar.Size = healthSize
-                    drawings.HealthBar.Position = position2D - size / 2 - Vector2.new(6, 0) + Vector2.new(0, size.Y * (1 - health))
-                    drawings.HealthBar.Visible = self.enabled
+                -- Радужные цвета
+                local espColor
+                if Settings.RainbowEsp then
+                    espColor = RainbowColors[currentRainbowIndex]
+                else
+                    espColor = player.Team ~= LocalPlayer.Team and Color3.fromRGB(255, 50, 50) or Color3.fromRGB(50, 255, 50)
                 end
-
-                drawings.NameLabel.Text = player.Name
-                drawings.NameLabel.Position = position2D + Vector2.new(0, size.Y / 2 + 5)
-                drawings.NameLabel.Visible = self.enabled
+                
+                -- Бокс ESP
+                local size = Vector2.new(2000 / position.Z, 3000 / position.Z)
+                esp.Box.Size = size
+                esp.Box.Position = Vector2.new(position.X - size.X/2, position.Y - size.Y/2)
+                esp.Box.Color = espColor
+                esp.Box.Visible = true
+                
+                -- Имя игрока
+                if Settings.ShowNames then
+                    esp.Name.Text = player.Name
+                    esp.Name.Position = Vector2.new(position.X, position.Y - size.Y/2 - 20)
+                    esp.Name.Color = espColor
+                    esp.Name.Visible = true
+                else
+                    esp.Name.Visible = false
+                end
+                
+                -- ХП
+                if Settings.ShowHealth then
+                    esp.Health.Text = "HP: " .. math.floor(humanoid.Health) .. "/" .. math.floor(humanoid.MaxHealth)
+                    esp.Health.Position = Vector2.new(position.X, position.Y + size.Y/2 + 5)
+                    esp.Health.Color = Color3.fromRGB(255, 255, 255)
+                    esp.Health.Visible = true
+                else
+                    esp.Health.Visible = false
+                end
+                
+                -- Оружие
+                if Settings.ShowWeapon then
+                    local weapon = "No Weapon"
+                    for _, tool in ipairs(character:GetChildren()) do
+                        if tool:IsA("Tool") then
+                            weapon = tool.Name
+                            break
+                        end
+                    end
+                    esp.Weapon.Text = weapon
+                    esp.Weapon.Position = Vector2.new(position.X, position.Y + size.Y/2 + 25)
+                    esp.Weapon.Color = Color3.fromRGB(200, 200, 0)
+                    esp.Weapon.Visible = true
+                else
+                    esp.Weapon.Visible = false
+                end
             else
-                for _, drawing in pairs(drawings) do
-                    drawing.Visible = false
-                end
+                esp.Box.Visible = false
+                esp.Name.Visible = false
+                esp.Health.Visible = false
+                esp.Weapon.Visible = false
             end
         else
-            for _, drawing in pairs(drawings) do
-                drawing.Visible = false
-            end
+            esp.Box.Visible = false
+            esp.Name.Visible = false
+            esp.Health.Visible = false
+            esp.Weapon.Visible = false
         end
     end
 end
 
--- Aimbot Functions
-local Aimbot = {
-    enabled = false,
-    target = nil,
-    fov = 100
-}
-
-function Aimbot:FindTarget()
-    local closest = nil
-    local closestDistance = self.fov
+-- Aimbot функция
+function GetClosestPlayer()
+    if not Settings.AimbotEnabled then return nil end
     
-    for _, player in pairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character then
-            local humanoid = player.Character:FindFirstChild("Humanoid")
-            local rootPart = player.Character:FindFirstChild("HumanoidRootPart")
+    local closestPlayer = nil
+    local closestDistance = Settings.FOV
+    
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Humanoid") and player.Character:FindFirstChild("HumanoidRootPart") then
+            if Settings.TeamCheck and player.Team == LocalPlayer.Team then continue end
             
-            if humanoid and humanoid.Health > 0 and rootPart then
-                local screenPoint = workspace.CurrentCamera:WorldToViewportPoint(rootPart.Position)
-                local mousePosition = UserInputService:GetMouseLocation()
-                local distance = (Vector2.new(screenPoint.X, screenPoint.Y) - mousePosition).Magnitude
+            local position, onScreen = Camera:WorldToViewportPoint(player.Character.HumanoidRootPart.Position)
+            
+            if onScreen then
+                local mousePos = UserInputService:GetMouseLocation()
+                local distance = (Vector2.new(position.X, position.Y) - mousePos).Magnitude
                 
                 if distance < closestDistance then
-                    closest = player
                     closestDistance = distance
+                    closestPlayer = player
                 end
             end
         end
     end
     
-    return closest
+    return closestPlayer
 end
 
-function Aimbot:AimAtTarget()
-    if self.enabled and self.target and self.target.Character then
-        local rootPart = self.target.Character:FindFirstChild("HumanoidRootPart")
-        if rootPart then
-            workspace.CurrentCamera.CFrame = CFrame.new(workspace.CurrentCamera.CFrame.Position, rootPart.Position)
+-- Обработка ввода
+UserInputService.InputBegan:Connect(function(input)
+    if input.KeyCode == Settings.MenuKey then
+        Settings.MenuVisible = not Settings.MenuVisible
+        MainFrame.Visible = Settings.MenuVisible
+        
+        -- Показывать кнопку закрытия на телефоне
+        if UserInputService.TouchEnabled then
+            CloseButton.Visible = Settings.MenuVisible
         end
     end
-end
-
--- Hitbox Extender
-local Hitbox = {
-    enabled = false,
-    size = 2
-}
-
-function Hitbox:ExtendHitboxes()
-    for _, player in pairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character then
-            for _, part in pairs(player.Character:GetChildren()) do
-                if part:IsA("BasePart") then
-                    part.Size = part.Size * self.size
-                    part.Transparency = 0.5
-                end
-            end
-        end
-    end
-end
-
--- Initialize Menu
-local Window = Library:CreateWindow("Trident Survival v5")
-
-local VisualsTab = Window:CreateTab("Visuals")
-local CombatTab = Window:CreateTab("Combat")
-local PlayerTab = Window:CreateTab("Player")
-
--- Visuals Tab
-VisualsTab:CreateToggle("Rainbow ESP", function(state)
-    ESP.enabled = state
 end)
 
-VisualsTab:CreateToggle("Show Health", function(state)
-    -- Health display logic
+CloseButton.MouseButton1Click:Connect(function()
+    Settings.MenuVisible = false
+    MainFrame.Visible = false
+    CloseButton.Visible = false
 end)
 
-VisualsTab:CreateSlider("ESP Distance", 50, 500, function(value)
-    -- Distance limit
-end)
-
--- Combat Tab
-CombatTab:CreateToggle("Aimbot", function(state)
-    Aimbot.enabled = state
-end)
-
-CombatTab:CreateToggle("Hitbox Extender", function(state)
-    Hitbox.enabled = state
-    if state then
-        Hitbox:ExtendHitboxes()
-    end
-end)
-
-CombatTab:CreateSlider("Aimbot FOV", 10, 300, function(value)
-    Aimbot.fov = value
-end)
-
-CombatTab:CreateSlider("Hitbox Size", 1, 5, function(value)
-    Hitbox.size = value
-    if Hitbox.enabled then
-        Hitbox:ExtendHitboxes()
-    end
-end)
-
--- Player Tab
-PlayerTab:CreateToggle("God Mode", function(state)
-    -- God mode logic
-end)
-
-PlayerTab:CreateToggle("Speed Hack", function(state)
-    if state then
-        LocalPlayer.Character.Humanoid.WalkSpeed = 50
-    else
-        LocalPlayer.Character.Humanoid.WalkSpeed = 16
-    end
-end)
-
-PlayerTab:CreateSlider("WalkSpeed", 16, 100, function(value)
-    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-        LocalPlayer.Character.Humanoid.WalkSpeed = value
-    end
-end)
-
--- Кнопка для сброса позиции меню
-PlayerTab:CreateButton("Reset Menu Position", function()
-    local MainFrame = game.CoreGui.LebyssCheatMenu.MainFrame
-    MainFrame.Position = UDim2.new(0.5, -250, 0.5, -200)
-end)
-
--- Initialize ESP for all players
-for _, player in pairs(Players:GetPlayers()) do
-    if player ~= LocalPlayer then
-        ESP:CreateBox(player)
-    end
-end
-
+-- Инициализация ESP для всех игроков
 Players.PlayerAdded:Connect(function(player)
-    ESP:CreateBox(player)
+    CreateESP(player)
 end)
 
 Players.PlayerRemoving:Connect(function(player)
-    if ESP.boxes[player] then
-        for _, drawing in pairs(ESP.boxes[player]) do
-            drawing:Remove()
-        end
-        ESP.boxes[player] = nil
-    end
+    RemoveESP(player)
 end)
 
--- Main loop
+for _, player in ipairs(Players:GetPlayers()) do
+    if player ~= LocalPlayer then
+        CreateESP(player)
+    end
+end
+
+-- Основной цикл
 RunService.RenderStepped:Connect(function()
-    if ESP.enabled then
-        ESP:UpdateESP()
+    -- Обновление FOV круга
+    FOVCircle.Visible = Settings.FOVVisible and Settings.AimbotEnabled
+    FOVCircle.Radius = Settings.FOV
+    FOVCircle.Position = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
+    
+    -- Радужный эффект
+    if Settings.RainbowEsp then
+        currentRainbowIndex = (currentRainbowIndex % #RainbowColors) + 1
     end
     
-    if Aimbot.enabled then
-        Aimbot.target = Aimbot:FindTarget()
-        Aimbot:AimAtTarget()
-    end
-end)
-
--- Toggle menu
-UserInputService.InputBegan:Connect(function(input)
-    if input.KeyCode == Enum.KeyCode.RightShift then
-        local menu = game.CoreGui:FindFirstChild("LebyssCheatMenu")
-        if menu then
-            menu.Enabled = not menu.Enabled
+    -- Обновление ESP
+    UpdateESP()
+    
+    -- Aimbot
+    if Settings.AimbotEnabled and UserInputService:IsMouseButtonPressed(Settings.AimKey) then
+        local target = GetClosestPlayer()
+        if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+            local targetPos = target.Character.HumanoidRootPart.Position
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetPos)
         end
     end
 end)
 
-print("Lebyss.xys Cheat Menu Loaded! Press RightShift to toggle menu.")
-print("Drag the title bar to move the menu")
-print("Press X button to close/open menu")
+-- Адаптация для телефона
+if UserInputService.TouchEnabled then
+    local TouchButton = Instance.new("TextButton")
+    TouchButton.Name = "TouchToggle"
+    TouchButton.Size = UDim2.new(0.1, 0, 0.1, 0)
+    TouchButton.Position = UDim2.new(0.9, 0, 0.9, 0)
+    TouchButton.BackgroundColor3 = Color3.fromRGB(50, 100, 200)
+    TouchButton.Text = "Menu"
+    TouchButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    TouchButton.TextScaled = true
+    TouchButton.Parent = ScreenGui
+    
+    TouchButton.MouseButton1Click:Connect(function()
+        Settings.MenuVisible = not Settings.MenuVisible
+        MainFrame.Visible = Settings.MenuVisible
+        CloseButton.Visible = Settings.MenuVisible
+    end)
+end
+
+print("Lebyss.xys V2 loaded! | discord.gg/kigjm65")
+print("Press Insert to toggle menu.")
