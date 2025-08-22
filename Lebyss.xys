@@ -8,13 +8,15 @@ local UserInputService = game:GetService("UserInputService")
 local CoreGui = game:GetService("CoreGui")
 local Workspace = game:GetService("Workspace")
 local Lighting = game:GetService("Lighting")
+local HttpService = game:GetService("HttpService")
 
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 local Mouse = LocalPlayer:GetMouse()
 
 -- Key System
-local CorrectKey = "1234222"
+local WebsiteURL = "https://lebyxx-keysystem.vercel.app" -- Замените на ваш сайт
+local CorrectKey = ""
 local KeyVerified = false
 local KeyAttempts = 0
 local MaxAttempts = 3
@@ -101,7 +103,7 @@ local KeyInfo = Instance.new("TextLabel")
 KeyInfo.Size = UDim2.new(0.9, 0, 0.2, 0)
 KeyInfo.Position = UDim2.new(0.05, 0, 0.2, 0)
 KeyInfo.BackgroundTransparency = 1
-KeyInfo.Text = "Enter Key: 1234222"
+KeyInfo.Text = "Get key from: " .. WebsiteURL
 KeyInfo.TextColor3 = Color3.fromRGB(200, 200, 255)
 KeyInfo.TextScaled = true
 KeyInfo.TextWrapped = true
@@ -112,7 +114,7 @@ KeyInput.Size = UDim2.new(0.8, 0, 0.2, 0)
 KeyInput.Position = UDim2.new(0.1, 0, 0.45, 0)
 KeyInput.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
 KeyInput.TextColor3 = Color3.fromRGB(255, 255, 255)
-KeyInput.PlaceholderText = "Enter key: 1234222"
+KeyInput.PlaceholderText = "Enter key from website..."
 KeyInput.Text = ""
 KeyInput.TextScaled = true
 KeyInput.Parent = KeyFrame
@@ -125,6 +127,15 @@ KeyButton.Text = "VERIFY KEY"
 KeyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 KeyButton.TextScaled = true
 KeyButton.Parent = KeyFrame
+
+local GetKeyButton = Instance.new("TextButton")
+GetKeyButton.Size = UDim2.new(0.6, 0, 0.15, 0)
+GetKeyButton.Position = UDim2.new(0.2, 0, 0.87, 0)
+GetKeyButton.BackgroundColor3 = Color3.fromRGB(100, 200, 100)
+GetKeyButton.Text = "GET KEY FROM SITE"
+GetKeyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+GetKeyButton.TextScaled = true
+GetKeyButton.Parent = KeyFrame
 
 local KeyStatus = Instance.new("TextLabel")
 KeyStatus.Size = UDim2.new(1, 0, 0.15, 0)
@@ -603,61 +614,12 @@ local function GetSilentAimTarget()
     
     local target = GetClosestPlayer()
     if target and target.Character and math.random(1, 100) <= Settings.HitChance then
-        local aimPart = target.Character:FindFirstChild("Head")
+        local aimPart = target.Character:FindFirstChild(Settings.SilentAimPart)
         if aimPart then
             return aimPart.Position
         end
     end
     return nil
-end
-
--- Улучшенный Silent Aim через hook метаметодов
-local function SetupSilentAim()
-    if not KeyVerified or not Settings.SilentAimEnabled then return end
-    
-    -- Сохраняем оригинальные функции
-    local mt = getrawmetatable(game)
-    local oldNamecall = mt.__namecall
-    local oldIndex = mt.__index
-    
-    -- Hook для __namecall (новые версии Roblox)
-    setreadonly(mt, false)
-    
-    mt.__namecall = newcclosure(function(self, ...)
-        local method = getnamecallmethod()
-        local args = {...}
-        
-        if Settings.SilentAimEnabled and KeyVerified and method == "FindPartOnRayWithIgnoreList" then
-            local target = GetClosestPlayer()
-            if target and target.Character then
-                local head = target.Character:FindFirstChild("Head")
-                if head then
-                    -- Меняем луч чтобы всегда попадать в голову
-                    local origin = args[1].Origin
-                    local direction = (head.Position - origin).Unit * 1000
-                    args[1] = Ray.new(origin, direction)
-                end
-            end
-        end
-        
-        return oldNamecall(self, unpack(args))
-    end)
-    
-    -- Hook для __index (старые версии Roblox)
-    mt.__index = newcclosure(function(self, key)
-        if key == "Hit" and Settings.SilentAimEnabled and KeyVerified then
-            local target = GetClosestPlayer()
-            if target and target.Character then
-                local head = target.Character:FindFirstChild("Head")
-                if head then
-                    return head.Position
-                end
-            end
-        end
-        return oldIndex(self, key)
-    end)
-    
-    setreadonly(mt, true)
 end
 
 -- Функция для радужного оружия
@@ -746,17 +708,52 @@ function RemoveRainbowWeapon()
     end
 end
 
+-- Функция для получения ключа с сайта
+function GetKeyFromWebsite()
+    -- В реальной реализации здесь будет HTTP запрос к вашему серверу
+    -- Это примерная реализация, вам нужно настроить свой сервер
+    
+    print("Redirecting to website for key: " .. WebsiteURL)
+    -- Здесь должен быть код для получения ключа с вашего сервера
+    -- Например: 
+    -- local success, response = pcall(function()
+    --     return HttpService:GetAsync(WebsiteURL .. "/api/getkey")
+    -- end)
+    
+    -- Временно показываем сообщение
+    KeyStatus.Text = "Visit website to get key"
+    KeyStatus.TextColor3 = Color3.fromRGB(100, 200, 255)
+    
+    -- Для демонстрации - используем фиксированный ключ
+    CorrectKey = "LEBYSS12345" -- Замените на реальный ключ с вашего сайта
+    KeyInput.PlaceholderText = "Enter key from " .. WebsiteURL
+end
+
+-- Hook для мыши
+local OriginalMouseTarget
+OriginalMouseTarget = getrawmetatable(game).__index
+setreadonly(getrawmetatable(game), false)
+
+getrawmetatable(game).__index = newcclosure(function(self, key)
+    if key == "Target" and Settings.SilentAimEnabled and KeyVerified then
+        local silentAimPos = GetSilentAimTarget()
+        if silentAimPos then
+            return Workspace.CurrentCamera:WorldToScreenPoint(silentAimPos)
+        end
+    end
+    return OriginalMouseTarget(self, key)
+end)
+
+setreadonly(getrawmetatable(game), true)
+
 -- Key System функция
 KeyButton.MouseButton1Click:Connect(function()
     local inputKey = KeyInput.Text:gsub("%s+", "")
     
-    if inputKey == CorrectKey then
+    if inputKey == CorrectKey and CorrectKey ~= "" then
         KeyVerified = true
         KeyGui.Enabled = false
         ScreenGui.Enabled = true
-        
-        -- Настраиваем Silent Aim
-        SetupSilentAim()
         
         -- Применяем радужное оружие после верификации
         if LocalPlayer.Character then
@@ -771,7 +768,6 @@ KeyButton.MouseButton1Click:Connect(function()
         end
         
         print("Key verified successfully! Lebyss.xys V2 activated.")
-        print("Silent Aim: Always hits head with 100% accuracy")
     else
         KeyAttempts = KeyAttempts + 1
         KeyStatus.Text = "Attempts: " .. KeyAttempts .. "/3 - WRONG KEY!"
@@ -786,6 +782,11 @@ KeyButton.MouseButton1Click:Connect(function()
             ScreenGui:Destroy()
         end
     end
+end)
+
+-- Кнопка получения ключа с сайта
+GetKeyButton.MouseButton1Click:Connect(function()
+    GetKeyFromWebsite()
 end)
 
 -- Обработка ввода
@@ -907,4 +908,4 @@ if UserInputService.TouchEnabled then
 end
 
 print("Lebyss.xys V2 Key System loaded!")
-print("Please enter key: 1234222 to activate the cheat.")
+print("Please visit " .. WebsiteURL .. " to get your key.")
